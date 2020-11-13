@@ -124,7 +124,7 @@
 		93B6BC4A1E62122B0050E48B /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1130;
+				LastUpgradeCheck = 1220;
 				ORGANIZATIONNAME = "RTI-Zone";
 				TargetAttributes = {
 					93B6BC511E62122B0050E48B = {
@@ -170,6 +170,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD)";
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
@@ -222,7 +223,6 @@
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
-				VALID_ARCHS = x86_64;
 			};
 			name = Debug;
 		};
@@ -230,6 +230,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD)";
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
@@ -276,7 +277,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				ONLY_ACTIVE_ARCH = NO;
 				SDKROOT = macosx;
-				VALID_ARCHS = x86_64;
 			};
 			name = Release;
 		};
@@ -294,7 +294,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				VALID_ARCHS = x86_64;
 			};
 			name = Debug;
 		};
@@ -312,7 +311,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				VALID_ARCHS = x86_64;
 			};
 			name = Release;
 		};
