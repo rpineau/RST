@@ -1050,6 +1050,7 @@ bool X2Mount::knowsBeyondThePole()
 }
 
 int X2Mount::beyondThePole(bool& bYes) {
+    // “beyond the pole” =  “telescope west of the pier”,
 	// bYes = mRST.GetIsBeyondThePole();
 	return SB_OK;
 }

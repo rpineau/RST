@@ -208,7 +208,7 @@ int RST::RSTreadResponse(unsigned char *pszRespBuffer, unsigned int nBufferLen)
         }
         ulTotalBytesRead += ulBytesRead;
 
-    } while (*pszBufPtr++ != '#' && ulTotalBytesRead < nBufferLen );
+    } while (ulTotalBytesRead < nBufferLen && *pszBufPtr++ != '#' );
 
     if(ulTotalBytesRead && *(pszBufPtr-1) == '#')
         *(pszBufPtr-1) = 0; //remove the # to zero terminate the string
