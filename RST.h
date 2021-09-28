@@ -1,41 +1,34 @@
 #pragma once
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-#include <string.h>
-#include <ctype.h>
-#include <memory.h>
-#include <string.h>
-#include <time.h>
-#ifdef SB_MAC_BUILD
-#include <unistd.h>
-#endif
-
 // C++ includes
 #include <string>
 #include <vector>
 #include <sstream>
 #include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <chrono>
+#include <thread>
+#include <ctime>
+#include <cmath>
 
 #include "../../licensedinterfaces/sberrorx.h"
 #include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
-#include "../../licensedinterfaces/sleeperinterface.h"
 #include "../../licensedinterfaces/serxinterface.h"
-#include "../../licensedinterfaces/loggerinterface.h"
 #include "../../licensedinterfaces/mountdriverinterface.h"
 #include "../../licensedinterfaces/mount/asymmetricalequatorialinterface.h"
 
 #include "StopWatch.h"
 
+#define PLUGIN_VERSION 1.0
 
 #define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
-#define DRIVER_VERSION 1.00
 
-enum RSTErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_CMD_RESPONSE, COMMAND_FAILED, PLUGIN_ERROR};
+enum RSTErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_CMD_RESPONSE, COMMAND_FAILED, PLUGIN_ERROR, COMMAND_TIMEOUT};
 
 #define SERIAL_BUFFER_SIZE 256
 #define MAX_TIMEOUT 1000
-#define PLUGIN_LOG_BUFFER_SIZE 256
+#define MAX_READ_WAIT_TIMEOUT 25
+#define ND_LOG_BUFFER_SIZE 256
 #define ERR_PARSE   1
 
 #define PLUGIN_NB_SLEW_SPEEDS 4
@@ -54,14 +47,10 @@ public:
 
     void setSerxPointer(SerXInterface *p) { m_pSerx = p; }
     void setTSX(TheSkyXFacadeForDriversInterface *pTSX) { m_pTsx = pTSX;};
-    void setSleeper(SleeperInterface *pSleeper) { m_pSleeper = pSleeper;};
-
-    int setSiteData(double dLongitude, double dLatitute, double dTimeZone);
-    int getSiteData(std::string &sLongitude, std::string &sLatitude, std::string &sTimeZone);
 
     int getFirmwareVersion(std::string &sFirmware);
 
-    void    setMountMode(MountTypeInterface::Type mountType);
+    void setMountMode(MountTypeInterface::Type mountType);
     MountTypeInterface::Type mountType();
 
     int getRaAndDec(double &dRa, double &dDec);
@@ -79,20 +68,13 @@ public:
     int getNbSlewRates();
     int getRateName(int nZeroBasedIndex, std::string &sOut);
     
-    int setMaxSpeed(const int nSpeed);
-    int getMaxSpeed(int &nSpeed);
+    int setSpeed(const int nSpeedId, const int nSpeed);
+    int getSpeed(const int nSpeedId, int &nSpeed);
 
-    int setFindSpeed(const int nSpeed);
-    int getFindSpeed(int &nSpeed);
-
-    int setCenteringSpeed(const int nSpeed);
-    int getCenteringSpeed(int &nSpeed);
-
-    int setGuideSpeed(const int nSpeed);
-    int getGuideSpeed(int &nSpeed);
+    int setGuideSpeed(const double dSpeed);
+    int getGuideSpeed(double &dSpeed);
 
     int gotoPark(double dRa, double dDEc);
-    int markParkPosition();
     int getAtPark(bool &bParked);
     int unPark();
 
@@ -101,22 +83,18 @@ public:
 
     int Abort();
 
-    int getLocalTimeFormat(bool &b24h);
-    int getDateFormat(bool &bDdMmYy);
-    int getStandardTime(std::string &sTime);
-    int getStandardDate(std::string &sDate);
+    int setSiteData(double dLongitude, double dLatitute, double dTimeZone);
+    int getSiteData(std::string &sLongitude, std::string &sLatitude, std::string &sTimeZone);
+
+    int getLocalTime(std::string &sTime);
+    int getLocalDate(std::string &sDate);
     int syncTime();
     int syncDate();
 
 private:
 
     SerXInterface                       *m_pSerx;
-    LoggerInterface                     *m_pLogger;
     TheSkyXFacadeForDriversInterface    *m_pTsx;
-    SleeperInterface                    *m_pSleeper;
-
-    bool    m_bDebugLog;
-    char    m_szLogBuffer[PLUGIN_LOG_BUFFER_SIZE];
 
 	bool    m_bIsConnected;                               // Connected to the mount?
     std::string m_sFirmwareVersion;
@@ -135,13 +113,13 @@ private:
     bool    m_bLimitCached;
     double  m_dHoursEast;
     double  m_dHoursWest;
-    
-    int     RSTSendCommand(const char *pszCmd, char *pszResult, unsigned int nResultMaxLen);
-    int     RSTreadResponse(unsigned char *pszRespBuffer, unsigned int bufferLen);
 
-    int     setSiteLongitude(const char *szLongitude);
-    int     setSiteLatitude(const char *szLatitude);
-    int     setSiteTimezone(const char *szTimezone);
+    int     sendCommand(const std::string sCmd, std::string &sResp, int nTimeout = MAX_TIMEOUT);
+    int     readResponse(std::string &sResp, int nTimeout = MAX_TIMEOUT);
+
+    int     setSiteLongitude(const std::string sLongitude);
+    int     setSiteLatitude(const std::string sLatitude);
+    int     setSiteTimezone(const std::string sTimezone);
 
     int     getSiteLongitude(std::string &sLongitude);
     int     getSiteLatitude(std::string &sLatitude);
@@ -153,24 +131,24 @@ private:
     int     getSoftLimitEastAngle(double &dAngle);
     int     getSoftLimitWestAngle(double &dAngle);
 
-    void    convertDecDegToDDMMSS(double dDeg, char *szResult, char &cSign, unsigned int size);
-    int     convertDDMMSSToDecDeg(const char *szStrDeg, double &dDecDeg);
-    
-    void    convertRaToHHMMSSt(double dRa, char *szResult, unsigned int size);
-    int     convertHHMMSStToRa(const char *szStrRa, double &dRa);
+    void    convertDecDegToDDMMSS(double dDeg, std::string &sResult, char &cSign);
 
-    int     parseFields(const char *pszIn, std::vector<std::string> &svFields, char cSeparator);
+    int     convertDDMMSSToDecDeg(const std::string sStrDeg, double &dDecDeg);
+    
+    void    convertRaToHHMMSSt(double dRa, std::string &sResult);
+    int     convertHHMMSStToRa(const std::string szStrRa, double &dRa);
+
+    int     parseFields(const std::string sIn, std::vector<std::string> &svFields, char cSeparator);
 
     std::vector<std::string>    m_svSlewRateNames = {"Guide", "Centering", "Find", "Max"};
     CStopWatch      timer;
 
     
 #ifdef PLUGIN_DEBUG
+    // timestamp for logs
+    const std::string getTimeStamp();
+    std::ofstream m_sLogFile;
     std::string m_sLogfilePath;
-	// timestamp for logs
-    char *timestamp;
-	time_t ltime;
-	FILE *Logfile;	  // LogFile
 #endif
 	
 };

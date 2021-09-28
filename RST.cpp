@@ -5,10 +5,8 @@ RST::RST()
 {
 
 	m_bIsConnected = false;
-
-    m_bDebugLog = true;
     m_bLimitCached = false;
-    
+
 #ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
@@ -21,33 +19,23 @@ RST::RST()
     m_sLogfilePath = getenv("HOME");
     m_sLogfilePath += "/RSTLog.txt";
 #endif
-	Logfile = fopen(m_sLogfilePath.c_str(), "w");
+    m_sLogFile.open(m_sLogfilePath, std::ios::out |std::ios::trunc);
 #endif
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::RST] Version %3.2f build 2020_09_05_1140.\n", timestamp, DRIVER_VERSION);
-	fprintf(Logfile, "[%s] RST New Constructor Called\n", timestamp);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [RST] Version " << std::fixed << std::setprecision(2) << PLUGIN_VERSION << " build " << __DATE__ << " " << __TIME__ << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [RST] Constructor Called." << std::endl;
+    m_sLogFile.flush();
 #endif
-
 }
 
 
 RST::~RST(void)
 {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] RST Destructor Called\n", timestamp );
-    fflush(Logfile);
-#endif
-#ifdef PLUGIN_DEBUG
+#ifdef    PLUGIN_DEBUG
     // Close LogFile
-    if (Logfile) fclose(Logfile);
+    if(m_sLogFile.is_open())
+        m_sLogFile.close();
 #endif
 }
 
@@ -57,11 +45,9 @@ int RST::Connect(char *pszPort)
     bool bIsAligned;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] RST::Connect Called %s\n", timestamp, pszPort);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Connect Called." << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Trying to connect to port " << pszPort<< std::endl;
+    m_sLogFile.flush();
 #endif
 
     // 115.2K 8N1
@@ -73,13 +59,9 @@ int RST::Connect(char *pszPort)
     if(!m_bIsConnected)
         return ERR_COMMNOLINK;
 
-
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] RST::Connect m_mountType %d\n", timestamp, m_mountType);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] m_mountType : " << m_mountType << std::endl;
+    m_sLogFile.flush();
 #endif
 
     // set mount type
@@ -101,20 +83,14 @@ int RST::Connect(char *pszPort)
 int RST::Disconnect(void)
 {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] RST::Disconnect Called\n", timestamp);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Disconnect] Disconnect Called." << std::endl;
+    m_sLogFile.flush();
 #endif
 	if (m_bIsConnected) {
         if(m_pSerx){
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-            ltime = time(NULL);
-            timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(Logfile, "[%s] RST::Disconnect closing serial port\n", timestamp);
-            fflush(Logfile);
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Disconnect] closing serial port." << std::endl;
+            m_sLogFile.flush();
 #endif
             m_pSerx->flushTx();
             m_pSerx->purgeTxRx();
@@ -130,123 +106,139 @@ int RST::Disconnect(void)
 
 
 #pragma mark - RST communication
-
-int RST::RSTSendCommand(const char *pszCmd, char *pszResult, unsigned int nResultMaxLen)
+int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
 {
     int nErr = PLUGIN_OK;
-    unsigned char szResp[SERIAL_BUFFER_SIZE];
-    unsigned long ulBytesWrite;
+    unsigned long  ulBytesWrite;
 
     m_pSerx->purgeTxRx();
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::RSTSendCommand] Sending %s\n", timestamp, pszCmd);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] sending : " << sCmd << std::endl;
+    m_sLogFile.flush();
 #endif
 
-    nErr = m_pSerx->writeFile((void *)pszCmd, strlen(pszCmd), ulBytesWrite);
+    nErr = m_pSerx->writeFile((void *)sCmd.c_str(), sCmd.size(), ulBytesWrite);
     m_pSerx->flushTx();
     if(nErr)
         return nErr;
-    // read response
 
-    if(pszResult) {
-        nErr = RSTreadResponse(szResp, SERIAL_BUFFER_SIZE);
-        if(nErr) {
+    // read response
+    if(nTimeout == 0) // no response expected
+        return nErr;
+
+    nErr = readResponse(sResp, nTimeout);
+    if(nErr) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-            ltime = time(NULL);
-            timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(Logfile, "[%s] [RST::RSTSendCommand] error %d reading response : %s\n", timestamp, nErr, szResp);
-            fflush(Logfile);
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] ***** ERROR READING RESPONSE **** error = " << nErr << " , response : " << sResp << std::endl;
+        m_sLogFile.flush();
 #endif
-            return nErr;
-        }
-        strncpy(pszResult, (const char *)szResp, nResultMaxLen);
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [RST::RSTSendCommand] got response : '%s'\n", timestamp, szResp);
-        fflush(Logfile);
-#endif
+        return nErr;
     }
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] response : " << sResp << std::endl;
+    m_sLogFile.flush();
+#endif
+
     return nErr;
 }
 
 
-int RST::RSTreadResponse(unsigned char *pszRespBuffer, unsigned int nBufferLen)
+int RST::readResponse(std::string &sResp, int nTimeout)
 {
     int nErr = PLUGIN_OK;
+    char pszBuf[SERIAL_BUFFER_SIZE];
     unsigned long ulBytesRead = 0;
     unsigned long ulTotalBytesRead = 0;
-    unsigned char *pszBufPtr;
+    char *pszBufPtr;
+    int nBytesWaiting = 0 ;
+    int nbTimeouts = 0;
 
-    memset(pszRespBuffer, 0, (size_t) nBufferLen);
-    pszBufPtr = pszRespBuffer;
+    sResp.clear();
+    memset(pszBuf, 0, SERIAL_BUFFER_SIZE);
+    pszBufPtr = pszBuf;
 
     do {
-        nErr = m_pSerx->readFile(pszBufPtr, 1, ulBytesRead, MAX_TIMEOUT);
+        nErr = m_pSerx->bytesWaitingRx(nBytesWaiting);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] nBytesWaiting      : " << nBytesWaiting << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] nBytesWaiting nErr : " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+        if(!nBytesWaiting) {
+            nbTimeouts += MAX_READ_WAIT_TIMEOUT;
+            if(nbTimeouts >= nTimeout) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
+                m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] bytesWaitingRx timeout, no data for " << nbTimeouts << " ms"<< std::endl;
+                m_sLogFile.flush();
+#endif
+                nErr = COMMAND_TIMEOUT;
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(MAX_READ_WAIT_TIMEOUT));
+            continue;
+        }
+        nbTimeouts = 0;
+        if(ulTotalBytesRead + nBytesWaiting <= SERIAL_BUFFER_SIZE)
+            nErr = m_pSerx->readFile(pszBufPtr, nBytesWaiting, ulBytesRead, nTimeout);
+        else {
+            nErr = ERR_RXTIMEOUT;
+            break; // buffer is full.. there is a problem !!
+        }
         if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile error : " << nErr << std::endl;
+            m_sLogFile.flush();
+#endif
             return nErr;
         }
 
- #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [RST::readResponse] *pszBufPtr = 0x%02X\n", timestamp, *pszBufPtr);
-        fflush(Logfile);
+        if (ulBytesRead != nBytesWaiting) { // timeout
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] rreadFile Timeout Error." << std::endl;
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile nBytesWaiting : " << nBytesWaiting << std::endl;
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile ulBytesRead   : " << ulBytesRead << std::endl;
+            m_sLogFile.flush();
 #endif
-
-        if (ulBytesRead !=1) {// timeout
-            nErr = PLUGIN_BAD_CMD_RESPONSE;
-            break;
         }
+
         ulTotalBytesRead += ulBytesRead;
+        pszBufPtr+=ulBytesRead;
+    }  while (ulTotalBytesRead < SERIAL_BUFFER_SIZE  && *(pszBufPtr-1) != '#');
 
-    } while (ulTotalBytesRead < nBufferLen && *pszBufPtr++ != '#' );
+    if(!ulTotalBytesRead)
+        nErr = COMMAND_TIMEOUT; // we didn't get an answer.. so timeout
+    else
+        *(pszBufPtr-1) = 0; //remove the #
 
-    if(ulTotalBytesRead && *(pszBufPtr-1) == '#')
-        *(pszBufPtr-1) = 0; //remove the # to zero terminate the string
+    sResp.assign(pszBuf);
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] sResp : " << sResp << std::endl;
+    m_sLogFile.flush();
+#endif
 
     return nErr;
 }
-
-
-#pragma mark - dome controller informations
 
 int RST::getFirmwareVersion(std::string &sFirmware)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    if(!m_bIsConnected)
-        return NOT_CONNECTED;
-
-    nErr = RSTSendCommand(":AV#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    sFirmware.assign(szResp+3);
-    m_sFirmwareVersion.assign(szResp+3);
+    nErr = sendCommand(":AV#", sResp);
+    sFirmware.assign(sResp);
     return nErr;
 }
 
 #pragma mark - Mount Coordinates
 void RST::setMountMode(MountTypeInterface::Type mountType)
 {
-    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [RST::setMountMode] mountType = %d\n", timestamp, mountType);
-        fflush(Logfile);
-    #endif
-    
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setMountMode]  mountType = " << mountType << std::endl;
+    m_sLogFile.flush();
+#endif
+
     m_mountType = mountType;
 }
 
@@ -259,30 +251,39 @@ MountTypeInterface::Type RST::mountType()
 int RST::getRaAndDec(double &dRa, double &dDec)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
     // get RA
-    nErr = RSTSendCommand(":GR#", szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":GR#", sResp);
     if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec]':GR#' ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
         return nErr;
     }
+
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::getRaAndDec] szResp = %s\n", timestamp, szResp);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec]  sResp : " << sResp << std::endl;
+    m_sLogFile.flush();
 #endif
 
-    nErr = convertHHMMSStToRa(szResp+3, dRa);
+#pragma mark - FIX RA CONVERSION
+    nErr = convertHHMMSStToRa(sResp.c_str(), dRa);
     if(nErr)
         return nErr;
 
     // get DEC
-    nErr = RSTSendCommand(":GD#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
+    nErr = sendCommand(":GD#", sResp);
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec]':GD#' ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
         return nErr;
-    nErr = convertDDMMSSToDecDeg(szResp+3, dDec);
+    }
+#pragma mark - FIX DEC CONVERSION
+    nErr = convertDDMMSSToDecDeg(sResp.c_str(), dDec);
 
     return nErr;
 }
@@ -290,46 +291,40 @@ int RST::getRaAndDec(double &dRa, double &dDec)
 int RST::setTarget(double dRa, double dDec)
 {
     int nErr;
-    char szCmd[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szTemp[SERIAL_BUFFER_SIZE];
+    std::stringstream ssTmp;
+    std::string sResp;
+    std::string sTemp;
     char cSign;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::setTarget] Ra : %f\n", timestamp, dRa);
-    fprintf(Logfile, "[%s] [RST::setTarget] Dec : %f\n", timestamp, dDec);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget]  Ra  : " << std::fixed << std::setprecision(2) << dRa << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget]  Dec : " << std::fixed << std::setprecision(2) << dDec << std::endl;
+    m_sLogFile.flush();
 #endif
 
     // convert Ra value to HH:MM:SS.T before passing them to the RST
-    convertRaToHHMMSSt(dRa, szTemp, SERIAL_BUFFER_SIZE);
+    convertRaToHHMMSSt(dRa, sTemp);
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::setTarget] Ra : %s\n", timestamp, szTemp);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget]  szTemp(Ra)  : " << sTemp << std::endl;
+    m_sLogFile.flush();
 #endif
     // set target Ra
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":Sr%s#", szTemp);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    ssTmp<<":Sr"<<sTemp<<"#";
+    nErr = sendCommand(ssTmp.str(), sResp);
 
-    convertDecDegToDDMMSS(dDec, szTemp, cSign, SERIAL_BUFFER_SIZE);
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::setTarget] Dec : %c%s\n", timestamp, cSign, szTemp);
-    fflush(Logfile);
-#endif
+
     // set target dec
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":Sd%c%s#", cSign,szTemp);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    convertDecDegToDDMMSS(dDec, sTemp, cSign);
 
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget]  szTemp(Dec)  : " << cSign<<sTemp << std::endl;
+    m_sLogFile.flush();
+#endif
+    std::stringstream().swap(ssTmp);
+
+    ssTmp<<":Sd"<<cSign<<sTemp<<"#";
+    nErr = sendCommand(ssTmp.str(), sResp);
     return nErr;
 }
 
@@ -338,26 +333,25 @@ int RST::syncTo(double dRa, double dDec)
 {
     int nErr = PLUGIN_OK;
     bool bAligned;
-    char szCmd[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::stringstream ssTmp;
+    std::string sResp;
     char cSign;
-    
+
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::syncTo] Ra : %f\n", timestamp, dRa);
-    fprintf(Logfile, "[%s] [RST::syncTo] Dec : %f\n", timestamp, dDec);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [syncTo]  Ra  : " << std::fixed << std::setprecision(2) << dRa << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [syncTo]  Dec : " << std::fixed << std::setprecision(2) << dDec << std::endl;
+    m_sLogFile.flush();
 #endif
+
+
     if(dDec <0) {
         cSign = '-';
         dDec = -dDec;
     } else {
         cSign = '+';
     }
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":Ck%03.3f%c%02.3f#", dRa, cSign, dDec);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    ssTmp << ":Ck" << std::fixed << std::setprecision(2) << dRa << cSign << std::fixed << std::setprecision(2) << dDec << "#";
+    nErr = sendCommand(ssTmp.str(), sResp);
 
     return nErr;
 }
@@ -375,27 +369,21 @@ int RST::isAligned(bool &bAligned)
 int RST::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackRaArcSecPerHr, double dTrackDecArcSecPerHr)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
     if(!bTrackingOn) { // stop tracking
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [RST::setTrackingRates] setting to stopped\n", timestamp);
-        fflush(Logfile);
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to stopped" << std::endl;
+        m_sLogFile.flush();
 #endif
-        nErr = RSTSendCommand(":CtL#", szResp, SERIAL_BUFFER_SIZE); // tracking off
+        nErr = sendCommand(":CtL#", sResp); // tracking off
     }
     else if(bTrackingOn && bIgnoreRates) { // sidereal
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [RST::setTrackingRates] setting to Sidereal\n", timestamp);
-        fflush(Logfile);
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Sidereal" << std::endl;
+        m_sLogFile.flush();
 #endif
-        nErr = RSTSendCommand(":CT0#", szResp, SERIAL_BUFFER_SIZE);
+        nErr = sendCommand(":CT0#", sResp);
     }
     else { // lunar, solar, ..
     }
@@ -405,12 +393,12 @@ int RST::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackRaAr
 int RST::getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &dTrackDecArcSecPerHr)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = RSTSendCommand(":Ct?#", szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":Ct?#", sResp);
     if(nErr)
         return nErr;
-    switch(szResp[3]) {
+    switch(sResp.at(3)) {
         case '0' :  // Sidereal
             dTrackRaArcSecPerHr = 0;
             dTrackDecArcSecPerHr = 0;
@@ -470,28 +458,47 @@ int RST::getLimits(double &dHoursEast, double &dHoursWest)
     return nErr;
 }
 
+#pragma mark - TODO getSoftLimitEastAngle
 int RST::getSoftLimitEastAngle(double &dAngle)
 {
     int nErr;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    nErr = RSTSendCommand("!NGle;", szResp, SERIAL_BUFFER_SIZE);
+    std::string sResp;
+    nErr = sendCommand("", sResp);
     if(nErr)
         return nErr;
-    dAngle = atof(szResp);
+    try {
+        dAngle = std::stof(sResp);
+    }
+    catch(const std::exception& e) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getSoftLimitEastAngle] conversion exception : " << e.what() << std::endl;
+        m_sLogFile.flush();
+#endif
+        return ERR_CMDFAILED;
+    }
 
     return nErr;
 }
 
+#pragma mark - TODO getSoftLimitWestAngle
 int RST::getSoftLimitWestAngle(double &dAngle)
 {
     int nErr;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = RSTSendCommand("!NGlw;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand("", sResp);
     if(nErr)
         return nErr;
-    dAngle = atof(szResp);
+    try {
+        dAngle = std::stof(sResp);
+    }
+    catch(const std::exception& e) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getSoftLimitWestAngle] conversion exception : " << e.what() << std::endl;
+        m_sLogFile.flush();
+#endif
+        return ERR_CMDFAILED;
+    }
 
     return nErr;
 }
@@ -519,10 +526,10 @@ int RST::startSlewTo(double dRa, double dDec)
 int RST::slewTargetRA_DecEpochNow()
 {
     int nErr;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = RSTSendCommand(":MS#", szResp, SERIAL_BUFFER_SIZE); // Equatorial
-    // nErr = RSTSendCommand(":MA#", szResp, SERIAL_BUFFER_SIZE);   // AltAz
+    nErr = sendCommand(":MS#", sResp);
+    // nErr = sendCommand(":MA#", sResp);   // AltAz
 
     timer.Reset();
     return nErr;
@@ -547,35 +554,32 @@ int RST::getRateName(int nZeroBasedIndex, std::string &sOut)
 int RST::startOpenLoopMove(const MountDriverInterface::MoveDir Dir, unsigned int nRate)
 {
     int nErr = PLUGIN_OK;
-
+    std::string sResp;
     m_nOpenLoopDir = Dir;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::startOpenSlew] setting to Dir %d\n", timestamp, Dir);
-    fprintf(Logfile, "[%s] [RST::startOpenSlew] Setting rate to %d\n", timestamp, nRate);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [startOpenLoopMove] setting dir to  : " << Dir << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [startOpenLoopMove] setting rate to : " << nRate << std::endl;
+    m_sLogFile.flush();
 #endif
 
     // select rate
     m_nOpenLoopDir = Dir;
     switch(nRate) {
         case 0:
-            nErr = RSTSendCommand(":RG#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":RG#", sResp, 0);
             break;
 
         case 1:
-            nErr = RSTSendCommand(":RC#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":RC#", sResp, 0);
             break;
 
         case 2:
-            nErr = RSTSendCommand(":RM#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":RM#", sResp, 0);
             break;
 
         case 3:
-            nErr = RSTSendCommand(":RS#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":RS#", sResp, 0);
             break;
 
         default :
@@ -586,16 +590,16 @@ int RST::startOpenLoopMove(const MountDriverInterface::MoveDir Dir, unsigned int
     // figure out direction
     switch(Dir){
         case MountDriverInterface::MD_NORTH:
-            nErr = RSTSendCommand(":Mn#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":Mn#", sResp, 0);
             break;
         case MountDriverInterface::MD_SOUTH:
-            nErr = RSTSendCommand(":Ms#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":Ms#", sResp, 0);
             break;
         case MountDriverInterface::MD_EAST:
-            nErr = RSTSendCommand(":Me#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":Me#", sResp, 0);
             break;
         case MountDriverInterface::MD_WEST:
-            nErr = RSTSendCommand(":Mw#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":Mw#", sResp, 0);
             break;
     }
 
@@ -605,27 +609,25 @@ int RST::startOpenLoopMove(const MountDriverInterface::MoveDir Dir, unsigned int
 int RST::stopOpenLoopMove()
 {
     int nErr = PLUGIN_OK;
+    std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::stopOpenLoopMove] Dir was %d\n", timestamp, m_nOpenLoopDir);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [stopOpenLoopMove] dir was  : " << m_nOpenLoopDir << std::endl;
+    m_sLogFile.flush();
 #endif
 
     switch(m_nOpenLoopDir){
         case MountDriverInterface::MD_NORTH:
-            nErr = RSTSendCommand(":Qn#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":Qn#", sResp, 0);
             break;
         case MountDriverInterface::MD_SOUTH:
-            nErr = RSTSendCommand(":Qs#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":Qs#", sResp, 0);
             break;
         case MountDriverInterface::MD_EAST:
-            nErr = RSTSendCommand(":Qe#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":Qe#", sResp, 0);
             break;
         case MountDriverInterface::MD_WEST:
-            nErr = RSTSendCommand(":Qw#", NULL, SERIAL_BUFFER_SIZE);
+            nErr = sendCommand(":Qw#", sResp, 0);
             break;
     }
 
@@ -633,108 +635,65 @@ int RST::stopOpenLoopMove()
 }
 
 
-int RST::setMaxSpeed(const int nSpeed)
+int RST::setSpeed(const int nSpeedId, const int nSpeed)
 {
     int nErr = PLUGIN_OK;
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::stringstream ssTmp;
+    std::string sResp;
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":Cu3=%04d#;", nSpeed);
-    nErr = RSTSendCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
+    ssTmp << ":Cu" << nSpeedId << "=" << std::setfill('0') << std::setw(4) << nSpeed << "#";
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
     return nErr;
 }
 
-int RST::getMaxSpeed(int &nSpeed)
+#pragma mark - TODO : fix response parsing
+int RST::getSpeed(const int nSpeedId, int &nSpeed)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::stringstream ssTmp;
+    std::string sResp;
 
-    nErr = RSTSendCommand(":CU3#", szResp, SERIAL_BUFFER_SIZE);
+    ssTmp << ":CU" << nSpeedId << "#";
+    nErr = sendCommand(ssTmp.str(), sResp);
+    if(nErr)
+        return nErr;
+
+    // nSpeed = atoi(szResp+5);
+    
+    return nErr;
+}
+
+int RST::setGuideSpeed(const double dSpeed)
+{
+    int nErr = PLUGIN_OK;
+    std::stringstream ssTmp;
+    std::string sResp;
+
+    ssTmp << ":Cu0=" << std::fixed << std::setprecision(1) << dSpeed << "#";
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
+    return nErr;
+}
+
+#pragma mark - TODO : fix response parsing
+int RST::getGuideSpeed(double &dSpeed)
+{
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+    nErr = sendCommand(":CU0#", sResp);
     if(nErr)
         return nErr;
     
-    nSpeed = atoi(szResp+5);
-    
-    return nErr;
-}
-
-int RST::setFindSpeed(const int nSpeed)
-{
-    int nErr = PLUGIN_OK;
-    char szCmd[SERIAL_BUFFER_SIZE];
-
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":Cu2=%04d#;", nSpeed);
-    nErr = RSTSendCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
-    return nErr;
-}
-
-int RST::getFindSpeed(int &nSpeed)
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    nErr = RSTSendCommand(":CU2#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    
-    nSpeed = atoi(szResp+5);
+    // dSpeed = atof(szResp+5);
 
     return nErr;
 }
 
-int RST::setCenteringSpeed(const int nSpeed)
-{
-    int nErr = PLUGIN_OK;
-    char szCmd[SERIAL_BUFFER_SIZE];
-
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":Cu1=%04d#;", nSpeed);
-    nErr = RSTSendCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
-    return nErr;
-}
-
-int RST::getCenteringSpeed(int &nSpeed)
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    nErr = RSTSendCommand(":CU21#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    
-    nSpeed = atoi(szResp+5);
-
-    return nErr;
-}
-
-int RST::setGuideSpeed(const int nSpeed)
-{
-    int nErr = PLUGIN_OK;
-    char szCmd[SERIAL_BUFFER_SIZE];
-
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":Cu0=%04d#;", nSpeed);
-    nErr = RSTSendCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
-    return nErr;
-}
-
-int RST::getGuideSpeed(int &nSpeed)
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    nErr = RSTSendCommand(":CU0#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    
-    nSpeed = atoi(szResp+5);
-
-    return nErr;
-}
-
-
+#pragma mark - TODO : parse response and set bComplete
 int RST::isSlewToComplete(bool &bComplete)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    int nPrecentRemaining;
+    std::string sResp;
 
     bComplete = false;
 
@@ -743,31 +702,14 @@ int RST::isSlewToComplete(bool &bComplete)
         return nErr;
     }
 
-    nErr = RSTSendCommand("!GGgr;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":CL#", sResp);
     if(nErr)
         return nErr;
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::isSlewToComplete] szResp : %s\n", timestamp, szResp);
-    fflush(Logfile);
-#endif
 
-    // remove the %
-    szResp[strlen(szResp) -1 ] = 0;
-    
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [RST::isSlewToComplete] szResp : %s\n", timestamp, szResp);
-    fflush(Logfile);
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isSlewToComplete] sResp : " << sResp << std::endl;
+    m_sLogFile.flush();
 #endif
-
-    nPrecentRemaining = atoi(szResp);
-    if(nPrecentRemaining == 0)
-        bComplete = true;
 
     return nErr;
 }
@@ -775,45 +717,25 @@ int RST::isSlewToComplete(bool &bComplete)
 int RST::gotoPark(double dRa, double dDec)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
 
-    // set park position ?
-    // or goto ?
-    // goto park
-    nErr = RSTSendCommand("!GTop;", szResp, SERIAL_BUFFER_SIZE);
-
+    nErr = startSlewTo(dRa, dDec);
     return nErr;
 }
 
-int RST::markParkPosition()
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    nErr = RSTSendCommand("!AMpp;", szResp, SERIAL_BUFFER_SIZE);
-
-    return nErr;
-
-}
 
 int RST::getAtPark(bool &bParked)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
 
-    bParked = false;
-    nErr = RSTSendCommand("!AGak;", szResp, SERIAL_BUFFER_SIZE);
-    if(strncmp(szResp,"Yes",SERIAL_BUFFER_SIZE) == 0) {
-        bParked = true;
-    }
     return nErr;
 }
 
 int RST::unPark()
 {
     int nErr = PLUGIN_OK;
-    bool bAligned;
+    std::string sResp;
 
+    nErr = sendCommand(":CtA#", sResp);
     return nErr;
 }
 
@@ -821,10 +743,10 @@ int RST::unPark()
 int RST::Abort()
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = RSTSendCommand(":Q#", szResp, SERIAL_BUFFER_SIZE);
-    nErr |= RSTSendCommand(":CtL#", szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":Q#", sResp);
+    nErr |= sendCommand(":CtL#", sResp);
     return nErr;
 }
 
@@ -834,14 +756,14 @@ int RST::syncTime()
     int nErr = PLUGIN_OK;
     int yy, mm, dd, h, min, dst;
     double sec;
-
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+    std::stringstream ssTmp;
 
     m_pTsx->localDateTime(yy, mm, dd, h, min, sec, dst);
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":SL%02d:%02d:%02d#",  h, min, int(sec));
-    nErr = RSTSendCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
-    getStandardTime(m_sTime);
+    ssTmp << ":SL" << std::setfill('0') << std::setw(2) << h << std::setfill('0') << std::setw(2) << min << std::setfill('0') << std::setw(2) << int(sec) << "#";
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
+    getLocalTime(m_sTime);
 
     return nErr;
 }
@@ -852,96 +774,93 @@ int RST::syncDate()
     int nErr = PLUGIN_OK;
     int yy, mm, dd, h, min, dst;
     double sec;
+    std::string sResp;
+    std::stringstream ssTmp;
 
-    char szCmd[SERIAL_BUFFER_SIZE];
 
     m_pTsx->localDateTime(yy, mm, dd, h, min, sec, dst);
     // yy is actually yyyy, need conversion to yy, 2017 -> 17
     yy = yy - (int(yy / 1000) * 1000);
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, ":SC%02d/%02d/%02d#", mm, dd, yy);
-    nErr = RSTSendCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
+    ssTmp << ":SC" << std::setfill('0') << std::setw(2) << mm << "/" << std::setfill('0') << std::setw(2) << dd << "/" << std::setfill('0') << std::setw(2) << yy << "#";
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
 
-    getStandardDate(m_sDate);
+    getLocalDate(m_sDate);
     return nErr;
 }
 
-
-int RST::setSiteLongitude(const char *szLongitude)
+#pragma mark - Check value format are correct
+int RST::setSiteLongitude(const std::string sLongitude)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+    std::stringstream ssTmp;
 
-    // snprintf(szCmd, SERIAL_BUFFER_SIZE, "!SSo%d%s;",szLongitude);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    // :SgsDDD*MM'SS#
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
 
     return nErr;
 }
 
-int RST::setSiteLatitude(const char *szLatitude)
+int RST::setSiteLatitude(const std::string sLatitude)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+    std::stringstream ssTmp;
 
-    // snprintf(szCmd, SERIAL_BUFFER_SIZE, ":StsDD*MM'SS#", nSiteNb, szLatitude);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    // :StsDD*MM'SS#
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
 
     return nErr;
 }
 
-int RST::setSiteTimezone(const char *szTimezone)
+int RST::setSiteTimezone(const std::string sTimezone)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
+    std::stringstream ssTmp;
 
-    // snprintf(szCmd, SERIAL_BUFFER_SIZE, "!SSz%d%s;", nSiteNb, szTimezone);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-
+    // :SGsHH#
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
     return nErr;
 }
 
+#pragma mark - TODO : Parse response
 int RST::getSiteLongitude(std::string &sLongitude)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    // snprintf(szCmd, SERIAL_BUFFER_SIZE, "!SGo%d;", nSiteNb);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":Gg#", sResp);
     if(!nErr) {
-        sLongitude.assign(szResp);
+        sLongitude.assign(sResp);
     }
     return nErr;
 }
 
+#pragma mark - TODO : Parse response
 int RST::getSiteLatitude(std::string &sLatitude)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    // snprintf(szCmd, SERIAL_BUFFER_SIZE, "!SGa%d;", nSiteNb);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":Gt#", sResp);
     if(!nErr) {
-        sLatitude.assign(szResp);
+        sLatitude.assign(sResp);
     }
 
     return nErr;
 }
 
+#pragma mark - TODO : Parse response
 int RST::getSiteTZ(std::string &sTimeZone)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    // snprintf(szCmd, SERIAL_BUFFER_SIZE, "!SGz%d;", nSiteNb);
-    nErr = RSTSendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":GG#", sResp);
     if(!nErr) {
-        sTimeZone.assign(szResp);
+        sTimeZone.assign(sResp);
     }
 
     return nErr;
@@ -950,65 +869,62 @@ int RST::getSiteTZ(std::string &sTimeZone)
 int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
 {
     int nErr = PLUGIN_OK;
-    char szLong[SERIAL_BUFFER_SIZE];
-    char szLat[SERIAL_BUFFER_SIZE];
-    char szTimeZone[SERIAL_BUFFER_SIZE];
-    char szHH[3], szMM[3];
+    std::string sLong;
+    std::string sLat;
+    std::stringstream ssTimeZone;
+    std::stringstream ssTmp;
+
+    std::stringstream  ssHH, ssMM;
     char cSignLong;
     char cSignLat;
 
-#if defined ATCS_DEBUG && ATCS_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [ATCS::setSiteData] dLongitude : %f\n", timestamp, dLongitude);
-    fprintf(Logfile, "[%s] [ATCS::setSiteData] dLatitute : %f\n", timestamp, dLatitute);
-    fprintf(Logfile, "[%s] [ATCS::setSiteData] szTimeZone : %f\n", timestamp, dTimeZone);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dLongitude : " << std::fixed << std::setprecision(2) << dLongitude << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dLatitute : " << std::fixed << std::setprecision(2) << dLatitute << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dTimeZone : " << std::fixed << std::setprecision(2) << dTimeZone << std::endl;
+    m_sLogFile.flush();
 #endif
 
-    convertDecDegToDDMMSS(dLongitude, szLong, cSignLong, SERIAL_BUFFER_SIZE);
-    convertDecDegToDDMMSS(dLatitute, szLat, cSignLat, SERIAL_BUFFER_SIZE);
-    snprintf(szHH,3,"%02d", int(fabs(dTimeZone)));
-    snprintf(szMM,3,"%02d", int((fabs(dTimeZone) - int(fabs(dTimeZone)))) * 100);
+    convertDecDegToDDMMSS(dLongitude, sLong, cSignLong);
+    convertDecDegToDDMMSS(dLatitute, sLat, cSignLat);
     
+    ssHH << std::setfill('0') << std::setw(2) << int(std::fabs(dTimeZone));
+    ssMM << std::setfill('0') << std::setw(2) << int((std::fabs(dTimeZone) - int(std::fabs(dTimeZone)))) * 100;
+
     if(dTimeZone<0) {
-        snprintf(szTimeZone, SERIAL_BUFFER_SIZE, "%s:%sW", szHH, szMM);
+        ssTimeZone << ssHH.str() << ":" << ssMM.str() << "W";
     }
     else if (dTimeZone>0) {
-        snprintf(szTimeZone, SERIAL_BUFFER_SIZE, "%s:%sE", szHH, szMM);
+        ssTimeZone << ssHH.str() << ":" << ssMM.str() << "E";
     }
     else
-        snprintf(szTimeZone, SERIAL_BUFFER_SIZE, "00:00");
+        ssTimeZone << "00:00";
 
     // Set the W/E
     if(dLongitude<0) {
-        snprintf(szLong, SERIAL_BUFFER_SIZE, "%sW", szLong);
+        sLong+="W";
     }
     else {
-        snprintf(szLong, SERIAL_BUFFER_SIZE, "%sE", szLong);
+        sLong+="E";
     }
     // convert signed latitude to N/S
     if(dLatitute>=0) {
-        snprintf(szLat, SERIAL_BUFFER_SIZE, "%sN", szLat);
+        sLat+="N";
     }
     else {
-        snprintf(szLat, SERIAL_BUFFER_SIZE, "%sS", szLat);
+        sLat+="S";
     }
 
-#if defined ATCS_DEBUG && ATCS_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [ATCS::setSiteData] szLong : %s\n", timestamp, szLong);
-    fprintf(Logfile, "[%s] [ATCS::setSiteData] szLat : %s\n", timestamp, szLat);
-    fprintf(Logfile, "[%s] [ATCS::setSiteData] szTimeZone : %s\n", timestamp, szTimeZone);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] sLong      : " << sLong << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] sLat       : " << sLat<< std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] ssTimeZone : " << ssTimeZone.str() << std::endl;
+    m_sLogFile.flush();
 #endif
 
-    nErr = setSiteLongitude(szLong);
-    nErr |= setSiteLatitude(szLat);
-    nErr |= setSiteTimezone(szTimeZone);
+    nErr = setSiteLongitude(sLong);
+    nErr |= setSiteLatitude(sLat);
+    nErr |= setSiteTimezone(ssTimeZone.str());
 
     return nErr;
 }
@@ -1027,89 +943,60 @@ int RST::getSiteData(std::string &sLongitude, std::string &sLatitude, std::strin
 
 #pragma mark  - Time and Date
 
-
-int RST::getLocalTimeFormat(bool &b24h)
+#pragma mark - Parse result
+int RST::getLocalTime(std::string &sTime)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = RSTSendCommand("!TGlf;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":GL#", sResp);
     if(nErr)
         return nErr;
-    b24h = false;
-    if(strncmp(szResp,"24hr",SERIAL_BUFFER_SIZE) == 0) {
-        b24h = true;
-    }
-
+    sTime.assign(sResp);
     return nErr;
 }
 
-int RST::getDateFormat(bool &bDdMmYy )
+int RST::getLocalDate(std::string &sDate)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    std::string sResp;
 
-    nErr = RSTSendCommand("!TGdf;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(":GC#", sResp);
     if(nErr)
         return nErr;
-    bDdMmYy = false;
-    if(strncmp(szResp,"dd/mm/yy",SERIAL_BUFFER_SIZE) == 0) {
-        bDdMmYy = true;
-    }
-    return nErr;
-}
-
-int RST::getStandardTime(std::string &sTime)
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    nErr = RSTSendCommand("!TGst;", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    sTime.assign(szResp);
-    return nErr;
-}
-
-int RST::getStandardDate(std::string &sDate)
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    nErr = RSTSendCommand("!TGsd;", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    sDate.assign(szResp);
+    sDate.assign(sResp);
     return nErr;
 }
 
 
-
-void RST::convertDecDegToDDMMSS(double dDeg, char *szResult, char &cSign, unsigned int size)
+void RST::convertDecDegToDDMMSS(double dDeg, std::string &sResult, char &cSign)
 {
     int DD, MM, SS;
     double mm, ss;
+    std::stringstream ssTmp;
 
+    sResult.clear();
     // convert dDeg decimal value to sDD:MM:SS
-
     cSign = dDeg>=0?'+':'-';
-    dDeg = fabs(dDeg);
-    DD = int(dDeg);
+    DD = int(std::fabs(dDeg));
     mm = dDeg - DD;
     MM = int(mm*60);
     ss = (mm*60) - MM;
-    SS = int(ceil(ss*60));
-    snprintf(szResult, size, "%02d:%02d:%02d", DD, MM, SS);
+    SS = int(std::ceil(ss*60));
+
+    ssTmp << cSign << std::setfill('0') << std::setw(2) << DD << ":" << std::setfill('0') << std::setw(2) << MM << ":" << std::setfill('0') << std::setw(2) << SS;
+    sResult.assign(ssTmp.str());
 }
 
-int RST::convertDDMMSSToDecDeg(const char *szStrDeg, double &dDecDeg)
+
+int RST::convertDDMMSSToDecDeg(const std::string sStrDeg, double &dDecDeg)
 {
     int nErr = PLUGIN_OK;
     std::vector<std::string> vFieldsData;
 
     dDecDeg = 0;
 
-    nErr = parseFields(szStrDeg, vFieldsData, ':');
+    nErr = parseFields(sStrDeg, vFieldsData, ':');
     if(nErr)
         return nErr;
 
@@ -1122,21 +1009,26 @@ int RST::convertDDMMSSToDecDeg(const char *szStrDeg, double &dDecDeg)
     return nErr;
 }
 
-void RST::convertRaToHHMMSSt(double dRa, char *szResult, unsigned int size)
+void RST::convertRaToHHMMSSt(double dRa, std::string &sResult)
 {
     int HH, MM;
     double hh, mm, SSt;
+    std::stringstream ssTmp;
 
+    sResult.clear();
     // convert Ra value to HH:MM:SS.T before passing them to the RST
     HH = int(dRa);
     hh = dRa - HH;
     MM = int(hh*60);
     mm = (hh*60) - MM;
     SSt = mm * 60;
-    snprintf(szResult,SERIAL_BUFFER_SIZE, "%02d:%02d:%02.1f", HH, MM, SSt);
+
+    ssTmp << std::setfill('0') << std::setw(2) << HH << ":" << std::setfill('0') << std::setw(2) << MM << ":" << std::setfill('0') << std::setw(2) << std::fixed << std::setprecision(1) << SSt;
+    sResult.assign(ssTmp.str());
 }
 
-int RST::convertHHMMSStToRa(const char *szStrRa, double &dRa)
+
+int RST::convertHHMMSStToRa(const std::string szStrRa, double &dRa)
 {
     int nErr = PLUGIN_OK;
     std::vector<std::string> vFieldsData;
@@ -1148,7 +1040,16 @@ int RST::convertHHMMSStToRa(const char *szStrRa, double &dRa)
         return nErr;
 
     if(vFieldsData.size() >= 3) {
-        dRa = atof(vFieldsData[0].c_str()) + atof(vFieldsData[1].c_str())/60 + atof(vFieldsData[1].c_str())/3600;
+        try {
+            dRa = std::stof(vFieldsData[0]) + std::stof(vFieldsData[1])/60 + std::stof(vFieldsData[2])/3600;
+        }
+        catch(const std::exception& e) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [convertHHMMSStToRa] conversion exception : " << e.what() << std::endl;
+            m_sLogFile.flush();
+#endif
+            return ERR_PARSE;
+        }
     }
     else
         nErr = ERR_PARSE;
@@ -1157,11 +1058,11 @@ int RST::convertHHMMSStToRa(const char *szStrRa, double &dRa)
 }
 
 
-int RST::parseFields(const char *pszIn, std::vector<std::string> &svFields, char cSeparator)
+int RST::parseFields(const std::string sIn, std::vector<std::string> &svFields, char cSeparator)
 {
     int nErr = PLUGIN_OK;
     std::string sSegment;
-    std::stringstream ssTmp(pszIn);
+    std::stringstream ssTmp(sIn);
 
     svFields.clear();
     // split the string into vector elements
@@ -1176,3 +1077,15 @@ int RST::parseFields(const char *pszIn, std::vector<std::string> &svFields, char
     return nErr;
 }
 
+#ifdef PLUGIN_DEBUG
+const std::string RST::getTimeStamp()
+{
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d.%X", &tstruct);
+
+    return buf;
+}
+#endif

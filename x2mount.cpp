@@ -42,7 +42,6 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 
     mRST.setSerxPointer(m_pSerX);
     mRST.setTSX(m_pTheSkyXForMounts);
-    mRST.setSleeper(m_pSleeper);
 
     m_CurrentRateIndex = 0;
 
@@ -272,8 +271,8 @@ int X2Mount::execModalSettingsDialog(void)
         dx->setEnabled("alignmentType",true);
         dx->setEnabled("pushButton_4",true);
 
-        nErr = mRST.getStandardTime(sTime);
-        nErr |= mRST.getStandardDate(sDate);
+        nErr = mRST.getLocalTime(sTime);
+        nErr |= mRST.getLocalDate(sDate);
         if(!nErr) {
             sTmp =sDate + " - " + sTime;
             dx->setText("time_date", sTmp.c_str());
@@ -396,7 +395,7 @@ void	X2Mount::driverInfoDetailedInfo(BasicStringInterface& str) const
 
 double	X2Mount::driverInfoVersion(void) const
 {
-	return DRIVER_VERSION;
+	return PLUGIN_VERSION;
 }
 
 void X2Mount::deviceInfoNameShort(BasicStringInterface& str) const
