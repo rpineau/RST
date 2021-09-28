@@ -21,7 +21,7 @@
 
 #define PLUGIN_VERSION 1.0
 
-#define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
+#define PLUGIN_DEBUG 3   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
 enum RSTErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_CMD_RESPONSE, COMMAND_FAILED, PLUGIN_ERROR, COMMAND_TIMEOUT};
 
@@ -90,7 +90,11 @@ public:
     int getLocalDate(std::string &sDate);
     int syncTime();
     int syncDate();
+    void setSyncDateTimeOnConnect(bool bSync);
 
+#ifdef PLUGIN_DEBUG
+    void log(std::string sLogEntry);
+#endif
 private:
 
     SerXInterface                       *m_pSerx;
@@ -99,6 +103,7 @@ private:
 	bool    m_bIsConnected;                               // Connected to the mount?
     std::string m_sFirmwareVersion;
 
+    bool    m_bSyncTimeAndDateOnConnect;
     MountTypeInterface::Type    m_mountType;
     
     std::string     m_sTime;
@@ -127,9 +132,6 @@ private:
 
     int     setTarget(double dRa, double dDec);
     int     slewTargetRA_DecEpochNow();
-
-    int     getSoftLimitEastAngle(double &dAngle);
-    int     getSoftLimitWestAngle(double &dAngle);
 
     void    convertDecDegToDDMMSS(double dDeg, std::string &sResult, char &cSign);
 

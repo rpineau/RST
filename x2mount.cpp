@@ -19,23 +19,7 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 	m_pLogger						= pLogger;
 	m_pIOMutex						= pIOMutex;
 	m_pTickCount					= pTickCount;
-	
-#ifdef RST_X2_DEBUG
-#if defined(SB_WIN_BUILD)
-    m_sLogfilePath = getenv("HOMEDRIVE");
-    m_sLogfilePath += getenv("HOMEPATH");
-    m_sLogfilePath += "\\RST_X2_Logfile.txt";
-#elif defined(SB_LINUX_BUILD)
-    m_sLogfilePath = getenv("HOME");
-    m_sLogfilePath += "/RST_X2_Logfile.txt";
-#elif defined(SB_MAC_BUILD)
-    m_sLogfilePath = getenv("HOME");
-    m_sLogfilePath += "/RST_X2_Logfile.txt";
-#endif
-	LogFile = fopen(m_sLogfilePath.c_str(), "w");
-#endif
-	
-	
+
 	m_bSynced = false;
 	m_bParked = false;
     m_bLinked = false;
@@ -60,6 +44,8 @@ X2Mount::X2Mount(const char* pszDriverSelection,
      else {
          mRST.setMountMode(MountTypeInterface::AltAz);
      }
+
+    mRST.setSyncDateTimeOnConnect(true);
 }
 
 X2Mount::~X2Mount()
@@ -84,14 +70,7 @@ X2Mount::~X2Mount()
 	if (m_pTickCount)
 		delete m_pTickCount;
 	
-#ifdef RST_X2_DEBUG
-	// Close LogFile
-	if (LogFile) {
-        fflush(LogFile);
-		fclose(LogFile);
-	}
-#endif
-	
+
 }
 
 int X2Mount::queryAbstraction(const char* pszName, void** ppVal)
@@ -138,29 +117,17 @@ int X2Mount::startOpenLoopMove(const MountDriverInterface::MoveDir& Dir, const i
 
     X2MutexLocker ml(GetMutex());
 
+
 	m_CurrentRateIndex = nRateIndex;
-#ifdef RST_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] startOpenLoopMove called Dir: %d , Rate: %d\n", timestamp, Dir, nRateIndex);
-        fflush(LogFile);
-	}
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::startOpenLoopMove");
 #endif
 
     nErr = mRST.startOpenLoopMove(Dir, nRateIndex);
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] startOpenLoopMove ERROR %d\n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::startOpenLoopMove error " + std::to_string(nErr));
 #endif
-        m_pLogger->out("startOpenLoopMove ERROR");
         return ERR_CMDFAILED;
     }
     return SB_OK;
@@ -173,29 +140,16 @@ int X2Mount::endOpenLoopMove(void)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
-#ifdef RST_X2_DEBUG
-	if (LogFile){
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(LogFile, "[%s] endOpenLoopMove Called\n", timestamp);
-        fflush(LogFile);
-	}
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::endOpenLoopMove");
 #endif
+
 
     nErr = mRST.stopOpenLoopMove();
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] endOpenLoopMove ERROR %d\n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::endOpenLoopMove error " + std::to_string(nErr));
 #endif
-        m_pLogger->out("endOpenLoopMove ERROR");
         return ERR_CMDFAILED;
     }
     return nErr;
@@ -213,19 +167,18 @@ int X2Mount::rateNameFromIndexOpenLoopMove(const int& nZeroBasedIndex, char* psz
 {
     int nErr = SB_OK;
     std::string sTmp;
-    
+
+    X2MutexLocker ml(GetMutex());
+
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::rateNameFromIndexOpenLoopMove");
+#endif
+
     nErr = mRST.getRateName(nZeroBasedIndex, sTmp);
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] rateNameFromIndexOpenLoopMove ERROR %d\n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::rateNameFromIndexOpenLoopMove error " + std::to_string(nErr));
 #endif
-        m_pLogger->out("rateNameFromIndexOpenLoopMove ERROR");
         return ERR_CMDFAILED;
     }
     strncpy(pszOut, sTmp.c_str(), nOutMaxSize);
@@ -303,7 +256,7 @@ int X2Mount::execModalSettingsDialog(void)
 
 void X2Mount::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
 {
-    int nErr;
+    int nErr = SB_OK;
     std::string sTmpBuf;
     std::string sTime;
     std::string sDate;
@@ -311,17 +264,10 @@ void X2Mount::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
     if(!m_bLinked)
         return ;
 
-#ifdef RST_X2_DEBUG
-	time_t ltime;
-	char *timestamp;
-	if (LogFile) {
-		ltime = time(NULL);
-		timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(LogFile, "[%s] uievent %s\n", timestamp, pszEvent);
-        fflush(LogFile);
-	}
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::uiEvent : " + std::string(pszEvent));
 #endif
+
 	if (!strcmp(pszEvent, "on_timer")) {
 
 	}
@@ -350,11 +296,18 @@ int X2Mount::establishLink(void)
     char szPort[DRIVER_MAX_STRING];
 
 	X2MutexLocker ml(GetMutex());
-	// get serial port device name
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::establishLink");
+#endif
+
+    // get serial port device name
     portNameOnToCharPtr(szPort,DRIVER_MAX_STRING);
 
 	nErr =  mRST.Connect(szPort);
     if(nErr) {
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::establishLink error " + std::to_string(nErr));
+#endif
         m_bLinked = false;
     }
     else {
@@ -368,6 +321,9 @@ int X2Mount::terminateLink(void)
     int nErr = SB_OK;
 
 	X2MutexLocker ml(GetMutex());
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::terminateLink");
+#endif
 
     nErr = mRST.Disconnect();
     m_bLinked = false;
@@ -377,8 +333,7 @@ int X2Mount::terminateLink(void)
 
 bool X2Mount::isLinked(void) const
 {
-
-	return mRST.isConnected();;
+	return mRST.isConnected();
 }
 
 bool X2Mount::isEstablishLinkAbortable(void) const
@@ -418,6 +373,10 @@ void X2Mount::deviceInfoDetailedDescription(BasicStringInterface& str) const
 }
 void X2Mount::deviceInfoFirmwareVersion(BasicStringInterface& str)
 {
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::deviceInfoFirmwareVersion");
+#endif
+
     if(m_bLinked) {
         std::string sFirmware;
         X2MutexLocker ml(GetMutex());
@@ -429,6 +388,10 @@ void X2Mount::deviceInfoFirmwareVersion(BasicStringInterface& str)
 }
 void X2Mount::deviceInfoModel(BasicStringInterface& str)
 {
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::deviceInfoModel");
+#endif
+
     if(m_bLinked) {
         str = "RST";
     }
@@ -451,17 +414,6 @@ int X2Mount::raDec(double& ra, double& dec, const bool& bCached)
     if(nErr)
         nErr = ERR_CMDFAILED;
 
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] raDec Called. Ra : %f , Dec : %f \n", timestamp, ra, dec);
-        fprintf(LogFile, "[%s] nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
-
 	return nErr;
 }
 
@@ -473,30 +425,18 @@ int X2Mount::abort()
 
     X2MutexLocker ml(GetMutex());
 
-#ifdef RST_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(LogFile, "[%s] abort Called\n", timestamp);
-        fflush(LogFile);
-	}
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::abort");
 #endif
 
     nErr = mRST.Abort();
-    if(nErr)
+    if(nErr) {
         nErr = ERR_CMDFAILED;
 
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] Abort nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::abort error " + std::to_string(nErr));
 #endif
-
+    }
     return nErr;
 }
 
@@ -508,28 +448,16 @@ int X2Mount::startSlewTo(const double& dRa, const double& dDec)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
-#ifdef RST_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(LogFile, "[%s] startSlewTo Called %f %f\n", timestamp, dRa, dDec);
-        fflush(LogFile);
-	}
+#ifdef PLUGIN_DEBUG
+    std::stringstream ssTmp;
+    ssTmp << "X2Mount::startSlewTo Ra : " << std::fixed << std::setprecision(2) << dRa << " , Dec: " << std::fixed << std::setprecision(2) << dDec;
+    mRST.log(ssTmp.str());
 #endif
     nErr = mRST.startSlewTo(dRa, dDec);
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] startSlewTo nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::startSlewTo error " + std::to_string(nErr));
 #endif
-        m_pLogger->out("startSlewTo ERROR");
         return ERR_CMDFAILED;
     }
 
@@ -544,34 +472,24 @@ int X2Mount::isCompleteSlewTo(bool& bComplete) const
 
     X2Mount* pMe = (X2Mount*)this;
     X2MutexLocker ml(pMe->GetMutex());
+#ifdef PLUGIN_DEBUG
+    pMe->mRST.log("X2Mount::isCompleteSlewTo");
+#endif
 
     nErr = pMe->mRST.isSlewToComplete(bComplete);
-    if(nErr)
-        return ERR_CMDFAILED;
-
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] isCompleteSlewTo nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
+    if(nErr) {
+#ifdef PLUGIN_DEBUG
+        pMe->mRST.log("X2Mount::isCompleteSlewTo error " + std::to_string(nErr));
 #endif
+    }
 
 	return nErr;
 }
 
 int X2Mount::endSlewTo(void)
 {
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] endSlewTo Called\n", timestamp);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::endSlewTo");
 #endif
     return SB_OK;
 }
@@ -585,31 +503,17 @@ int X2Mount::syncMount(const double& ra, const double& dec)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] syncMount Called : %f\t%f\n", timestamp, ra, dec);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::syncMount");
 #endif
 
     nErr = mRST.syncTo(ra, dec);
-    if(nErr)
+    if(nErr) {
         nErr = ERR_CMDFAILED;
-
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] syncMount nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::syncMount error " + std::to_string(nErr));
 #endif
-
+    }
     return nErr;
 }
 
@@ -622,18 +526,16 @@ bool X2Mount::isSynced(void)
 
     X2MutexLocker ml(GetMutex());
 
-   nErr = mRST.isAligned(m_bSynced);
-
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] isSynced Called : m_bSynced = %s\n", timestamp, m_bSynced?"true":"false");
-        fprintf(LogFile, "[%s] isSynced nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::isSynced");
 #endif
+
+   nErr = mRST.isAligned(m_bSynced);
+    if(nErr) {
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::isSynced error " + std::to_string(nErr));
+#endif
+    }
 
     return m_bSynced;
 }
@@ -649,34 +551,28 @@ int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates,
 
     X2MutexLocker ml(GetMutex());
 
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::setTrackingRates");
+#endif
+
     dTrackRaArcSecPerHr = dRaRateArcSecPerSec * 3600;
     dTrackDecArcSecPerHr = dDecRateArcSecPerSec * 3600;
 
-    nErr = mRST.setTrackingRates(bTrackingOn, bIgnoreRates, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] setTrackingRates Called. Tracking On: %s , Ra rate : %f , Dec rate: %f\n", timestamp, bTrackingOn?"true":"false", dRaRateArcSecPerSec, dDecRateArcSecPerSec);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+    std::stringstream ssTmp;
+    ssTmp << "X2Mount::setTrackingRates Tracking On: " << (bTrackingOn?"true":"false") <<"Ra rate : " << std::fixed << std::setprecision(2) << dRaRateArcSecPerSec << " , Dec rate: " << std::fixed << std::setprecision(2) << dDecRateArcSecPerSec;
+    mRST.log(ssTmp.str());
 #endif
-    if(nErr)
-        return ERR_CMDFAILED;
 
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] setTrackingRates nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
+    nErr = mRST.setTrackingRates(bTrackingOn, bIgnoreRates, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
+
+#ifdef PLUGIN_DEBUG
+    if(nErr) {
+        mRST.log("X2Mount::setTrackingRates error " + std::to_string(nErr));
     }
 #endif
 
     return nErr;
-	
 }
 
 int X2Mount::trackingRates(bool& bTrackingOn, double& dRaRateArcSecPerSec, double& dDecRateArcSecPerSec)
@@ -689,31 +585,24 @@ int X2Mount::trackingRates(bool& bTrackingOn, double& dRaRateArcSecPerSec, doubl
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::trackingRates");
+#endif
 
     nErr = mRST.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] trackingRates  mRST.getTrackRates nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::trackingRates error " + std::to_string(nErr));
 #endif
         return ERR_CMDFAILED;
     }
     dRaRateArcSecPerSec = dTrackRaArcSecPerHr / 3600;
     dDecRateArcSecPerSec = dTrackDecArcSecPerHr / 3600;
 
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] trackingRates Called. Tracking On: %d , Ra rate : %f , Dec rate: %f\n", timestamp, bTrackingOn, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+    std::stringstream ssTmp;
+    ssTmp << "X2Mount::trackingRates Tracking On: " << (bTrackingOn?"true":"false") <<" , Ra rate : " << std::fixed << std::setprecision(2) << dRaRateArcSecPerSec << " , Dec rate: " << std::fixed << std::setprecision(2) << dDecRateArcSecPerSec;
+    mRST.log(ssTmp.str());
 #endif
 
 	return nErr;
@@ -726,28 +615,13 @@ int X2Mount::siderealTrackingOn()
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] siderealTrackingOn Called \n", timestamp);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::siderealTrackingOn");
 #endif
-
     nErr = setTrackingRates( true, true, 0.0, 0.0);
-    if(nErr)
-        return ERR_CMDFAILED;
-
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] siderealTrackingOn nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
+#ifdef PLUGIN_DEBUG
+    if(nErr) {
+        mRST.log("X2Mount::siderealTrackingOn error " + std::to_string(nErr));
     }
 #endif
 
@@ -761,27 +635,14 @@ int X2Mount::trackingOff()
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] trackingOff Called \n", timestamp);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::trackingOff");
 #endif
-    nErr = setTrackingRates( false, true, 0.0, 0.0);
-    if(nErr)
-        nErr = ERR_CMDFAILED;
 
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] trackingOff nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
+    nErr = setTrackingRates( false, true, 0.0, 0.0);
+#ifdef PLUGIN_DEBUG
+    if(nErr) {
+        mRST.log("X2Mount::trackingOff error " + std::to_string(nErr));
     }
 #endif
 
@@ -810,17 +671,14 @@ bool X2Mount::isParked(void)
         return false;
 
     X2MutexLocker ml(GetMutex());
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::isParked");
+#endif
 
     nErr = mRST.getAtPark(bIsPArked);
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] isParked mRST.getAtPark nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::isParked error " + std::to_string(nErr));
 #endif
         return false;
     }
@@ -830,14 +688,8 @@ bool X2Mount::isParked(void)
     // get tracking state.
     nErr = mRST.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] isParked mRST.getTrackRates nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::isParked -> getTrackRates error " + std::to_string(nErr));
 #endif
         return false;
     }
@@ -858,45 +710,32 @@ int X2Mount::startPark(const double& dAz, const double& dAlt)
         return ERR_NOLINK;
 	
 	X2MutexLocker ml(GetMutex());
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::startPark");
+#endif
 
 	nErr = m_pTheSkyXForMounts->HzToEq(dAz, dAlt, dRa, dDec);
     if (nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] startPark  m_pTheSkyXForMounts->HzToEq nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::startPark error " + std::to_string(nErr));
 #endif
         return nErr;
     }
 
-#ifdef RST_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] startPark Called. Alt: %f , Az: %f [ Ra: %f , Dec: %f]\n", timestamp, dAz, dAlt, dRa, dDec);
-        fflush(LogFile);
-	}
+
+#ifdef PLUGIN_DEBUG
+    std::stringstream ssTmp;
+    ssTmp << "X2Mount::startPark Alt : " << std::fixed << std::setprecision(2) << dAlt << " , Az: " << std::fixed << std::setprecision(2) << dAz << "[ Ra : " << std::fixed << std::setprecision(2) << dRa << " , Dec: " << std::fixed << std::setprecision(2) << dDec <<"]";
+    mRST.log(ssTmp.str());
 #endif
     // goto park
     nErr = mRST.gotoPark(dRa, dDec);
-    if(nErr)
-        nErr = ERR_CMDFAILED;
-
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] startPark  mRST.gotoPark nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
+    if (nErr) {
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::startPark error " + std::to_string(nErr));
 #endif
-
+        nErr = ERR_CMDFAILED;
+    }
 	return nErr;
 }
 
@@ -912,29 +751,19 @@ int X2Mount::isCompletePark(bool& bComplete) const
 
     X2MutexLocker ml(pMe ->GetMutex());
 
-#ifdef RST_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(LogFile, "[%s] isCompletePark Called\n", timestamp);
-        fflush(LogFile);
-	}
+#ifdef PLUGIN_DEBUG
+    pMe->mRST.log("X2Mount::isCompletePark");
 #endif
+
     nErr = pMe->mRST.getAtPark(bComplete);
     if(nErr)
         nErr = ERR_CMDFAILED;
 
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] isCompletePark  mRST.getAtPark nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
+    if (nErr) {
+#ifdef PLUGIN_DEBUG
+        pMe->mRST.log("X2Mount::isCompletePark error " + std::to_string(nErr));
 #endif
-
+    }
 	return nErr;
 }
 
@@ -951,17 +780,14 @@ int X2Mount::startUnpark(void)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::startUnpark");
+#endif
 
     nErr = mRST.unPark();
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] startUnpark : mRST.unPark() failled !\n", timestamp);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        mRST.log("X2Mount::startUnpark error " + std::to_string(nErr));
 #endif
         nErr = ERR_CMDFAILED;
     }
@@ -985,21 +811,18 @@ int X2Mount::isCompleteUnpark(bool& bComplete) const
     X2Mount* pMe = (X2Mount*)this;
 
     X2MutexLocker ml(pMe ->GetMutex());
+#ifdef PLUGIN_DEBUG
+    pMe->mRST.log("X2Mount::isCompleteUnpark");
+#endif
 
     bComplete = false;
 
     nErr = pMe->mRST.getAtPark(bIsParked);
     if(nErr) {
-#ifdef RST_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] isCompleteUnpark  mRST.getAtPark nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
+#ifdef PLUGIN_DEBUG
+        pMe->mRST.log("X2Mount::isCompleteUnpark error " + std::to_string(nErr));
 #endif
-        nErr = ERR_CMDFAILED;
+        return ERR_CMDFAILED;
     }
     if(!bIsParked) { // no longer parked.
         bComplete = true;
@@ -1012,14 +835,8 @@ int X2Mount::isCompleteUnpark(bool& bComplete) const
     nErr = pMe->mRST.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
     if(nErr)
         nErr = ERR_CMDFAILED;
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] isCompleteUnpark  mRST.getTrackRates nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
+#ifdef PLUGIN_DEBUG
+    pMe->mRST.log("X2Mount::isCompleteUnpark getTrackRates error " + std::to_string(nErr));
 #endif
 
     if(bTrackingOn) {
@@ -1036,7 +853,7 @@ int X2Mount::isCompleteUnpark(bool& bComplete) const
 /*!Called once the unpark is complete.
  This is called once for every corresponding startUnpark() allowing software implementations of unpark.
  */
-int		X2Mount::endUnpark(void)
+int X2Mount::endUnpark(void)
 {
 	return SB_OK;
 }
@@ -1045,25 +862,23 @@ int		X2Mount::endUnpark(void)
 
 bool X2Mount::knowsBeyondThePole()
 {
-    return true;
+    X2MutexLocker ml(GetMutex());
+   return true;
 }
 
 int X2Mount::beyondThePole(bool& bYes) {
+    X2MutexLocker ml(GetMutex());
     // “beyond the pole” =  “telescope west of the pier”,
 	// bYes = mRST.GetIsBeyondThePole();
 	return SB_OK;
 }
 
 
-double X2Mount::flipHourAngle() {
-#ifdef RST_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		// fprintf(LogFile, "[%s] flipHourAngle called\n", timestamp);
-        fflush(LogFile);
-	}
+double X2Mount::flipHourAngle()
+{
+    X2MutexLocker ml(GetMutex());
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::flipHourAngle");
 #endif
 
 	return 0.0;
@@ -1077,28 +892,38 @@ int X2Mount::gemLimits(double& dHoursEast, double& dHoursWest)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::gemLimits");
+#endif
 
     nErr = mRST.getLimits(dHoursEast, dHoursWest);
 
-#ifdef RST_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] gemLimits mRST.getLimits nErr = %d\n", timestamp, nErr);
-        fprintf(LogFile, "[%s] gemLimits dHoursEast = %f\n", timestamp, dHoursEast);
-        fprintf(LogFile, "[%s] gemLimits dHoursWest = %f\n", timestamp, dHoursWest);
-        fflush(LogFile);
+#ifdef PLUGIN_DEBUG
+    if(nErr) {
+        mRST.log("X2Mount::gemLimits error " + std::to_string(nErr));
     }
+    std::stringstream ssTmp;
+    ssTmp << "X2Mount::gemLimits dHoursEast : " << std::fixed << std::setprecision(2) << dHoursEast << " , dHoursWest: " << std::fixed << std::setprecision(2) << dHoursWest;
+    mRST.log(ssTmp.str());
 #endif
     // temp debugging.
 	dHoursEast = 0.0;
 	dHoursWest = 0.0;
-	return SB_OK;
+#ifdef PLUGIN_DEBUG
+    std::stringstream().swap(ssTmp);
+    ssTmp << "X2Mount::gemLimits dHoursEast : " << std::fixed << std::setprecision(2) << dHoursEast << " , dHoursWest: " << std::fixed << std::setprecision(2) << dHoursWest;
+    mRST.log(ssTmp.str());
+#endif
+
+    return SB_OK;
 }
 
 MountTypeInterface::Type X2Mount::mountType()
 {
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::mountType");
+#endif
+
     return  mRST.mountType();
 }
 

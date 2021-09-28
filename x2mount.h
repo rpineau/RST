@@ -216,13 +216,5 @@ private:
 	int m_CurrentRateIndex;
 
     void portNameOnToCharPtr(char* pszPort, const unsigned int& nMaxSize) const;
-
-#ifdef RST_X2_DEBUG
-    std::string m_sLogfilePath;
-    char *timestamp;
-    time_t ltime;
-	FILE *LogFile;	  // LogFile
-#endif
-	
 	
 };
