@@ -459,7 +459,7 @@ int X2Mount::startSlewTo(const double& dRa, const double& dDec)
 #ifdef PLUGIN_DEBUG
         mRST.log("X2Mount::startSlewTo error " + std::to_string(nErr));
 #endif
-        return ERR_CMDFAILED;
+        return nErr;
     }
 
     return nErr;
@@ -664,9 +664,7 @@ bool X2Mount::needsRefactionAdjustments(void)
 bool X2Mount::isParked(void)
 {
     int nErr;
-    bool bTrackingOn;
     bool bIsPArked;
-    double dTrackRaArcSecPerHr, dTrackDecArcSecPerHr;
 
     if(!m_bLinked)
         return false;
@@ -683,22 +681,7 @@ bool X2Mount::isParked(void)
 #endif
         return false;
     }
-    if(!bIsPArked) // not parked
-        return false;
-
-    // get tracking state.
-    nErr = mRST.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
-    if(nErr) {
-#ifdef PLUGIN_DEBUG
-        mRST.log("X2Mount::isParked -> getTrackRates error " + std::to_string(nErr));
-#endif
-        return false;
-    }
-    // if AtPark and tracking is off, then we're parked, if not then we're unparked.
-    if(bIsPArked && !bTrackingOn)
-        m_bParked = true;
-    else
-        m_bParked = false;
+    m_bParked = bIsPArked;
     return m_bParked;
 }
 
@@ -714,23 +697,9 @@ int X2Mount::startPark(const double& dAz, const double& dAlt)
 #ifdef PLUGIN_DEBUG
     mRST.log("X2Mount::startPark");
 #endif
-
-	nErr = m_pTheSkyXForMounts->HzToEq(dAz, dAlt, dRa, dDec);
-    if (nErr) {
-#ifdef PLUGIN_DEBUG
-        mRST.log("X2Mount::startPark error " + std::to_string(nErr));
-#endif
-        return nErr;
-    }
-
-
-#ifdef PLUGIN_DEBUG
-    std::stringstream ssTmp;
-    ssTmp << "X2Mount::startPark Alt : " << std::fixed << std::setprecision(2) << dAlt << " , Az: " << std::fixed << std::setprecision(2) << dAz << "[ Ra : " << std::fixed << std::setprecision(2) << dRa << " , Dec: " << std::fixed << std::setprecision(2) << dDec <<"]";
-    mRST.log(ssTmp.str());
-#endif
-    // goto park
-    nErr = mRST.gotoPark(dRa, dDec);
+    // for now TSX pass 0.00 for both values.
+    
+    nErr = mRST.gotoPark(dAlt, dAz);
     if (nErr) {
 #ifdef PLUGIN_DEBUG
         mRST.log("X2Mount::startPark error " + std::to_string(nErr));
@@ -792,7 +761,6 @@ int X2Mount::startUnpark(void)
 #endif
         nErr = ERR_CMDFAILED;
     }
-    m_bParked = false;
     return nErr;
 }
 
@@ -825,30 +793,18 @@ int X2Mount::isCompleteUnpark(bool& bComplete) const
 #endif
         return ERR_CMDFAILED;
     }
+
+#ifdef PLUGIN_DEBUG
+    pMe->mRST.log("X2Mount::isCompleteUnpark bIsParked " + std::string(bIsParked?"Yes":"No"));
+#endif
+
     if(!bIsParked) { // no longer parked.
         bComplete = true;
         pMe->m_bParked = false;
         return nErr;
     }
 
-    // if we're still at the park position
-    // get tracking state. If tracking is off, then we're parked, if not then we're unparked.
-    nErr = pMe->mRST.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
-    if(nErr)
-        nErr = ERR_CMDFAILED;
-#ifdef PLUGIN_DEBUG
-    pMe->mRST.log("X2Mount::isCompleteUnpark getTrackRates error " + std::to_string(nErr));
-#endif
-
-    if(bTrackingOn) {
-        bComplete = true;
-        pMe->m_bParked = false;
-    }
-    else {
-        bComplete = false;
-        pMe->m_bParked = true;
-    }
-	return SB_OK;
+    return SB_OK;
 }
 
 /*!Called once the unpark is complete.

@@ -74,10 +74,10 @@ public:
     int setGuideSpeed(const double dSpeed);
     int getGuideSpeed(double &dSpeed);
 
-    int gotoPark(double dRa, double dDEc);
+    int gotoPark(double dAlt, double dAz);
     int getAtPark(bool &bParked);
     int unPark();
-
+    int isTrackingOn(bool &bTrakOn);
 
     int getLimits(double &dHoursEast, double &dHoursWest);
 
@@ -148,7 +148,6 @@ private:
     int     parseFields(const std::string sIn, std::vector<std::string> &svFields, char cSeparator);
 
     std::vector<std::string>    m_svSlewRateNames = {"Guide", "Centering", "Find", "Max"};
-    CStopWatch      timer;
 
     
 #ifdef PLUGIN_DEBUG

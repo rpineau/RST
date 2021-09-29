@@ -47,8 +47,7 @@ RST::~RST(void)
 
 int RST::Connect(char *pszPort)
 {
-    bool bIsParked;
-    bool bIsAligned;
+    std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Connect Called." << std::endl;
@@ -89,6 +88,11 @@ int RST::Connect(char *pszPort)
         default :
             break;
     }
+
+    // usb mode on
+    sendCommand(":AU#", sResp, 0);
+    // request protocol Rainbow
+    sendCommand(":AR#", sResp, 0);
 
     if(m_bSyncTimeAndDateOnConnect) {
         syncTime();
@@ -353,35 +357,39 @@ int RST::setTarget(double dRa, double dDec)
     m_sLogFile.flush();
 #endif
 
-    // convert Ra value to HH:MM:SS.T before passing them to the RST
+    // convert Ra value to HH:MM:SS.S before passing them to the RST
     convertRaToHHMMSSt(dRa, sTemp);
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget] szTemp(Ra)  : " << sTemp << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget] Converted Ra : " << sTemp << std::endl;
     m_sLogFile.flush();
 #endif
     // set target Ra
     ssTmp<<":Sr"<<sTemp<<"#";
     nErr = sendCommand(ssTmp.str(), sResp, 100); // need a fast error as this command doesn't follow the usual format and doesn't end with #
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     if(sResp.size() && sResp.at(0)=='1') {
         nErr = PLUGIN_OK;
     }
     else if(nErr)
         return nErr;
 
-    // set target dec
+
+    // convert target dec to sDD*MM:SS.S
     convertDecDegToDDMMSS_ForDecl(dDec, sTemp);
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget]  szTemp(Dec)  : " <<sTemp << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget] Converted Dec : " <<sTemp << std::endl;
     m_sLogFile.flush();
 #endif
     std::stringstream().swap(ssTmp);
-
+    // set target Dec
     ssTmp<<":Sd"<<sTemp<<"#";
     nErr = sendCommand(ssTmp.str(), sResp, 100); // need a fast error as this command doesn't follow the usual format and doesn't end with #
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     if(sResp.size() && sResp.at(0)=='1')
         nErr = PLUGIN_OK;
+
     return nErr;
 }
 
@@ -398,7 +406,7 @@ int RST::setTargetAltAz(double dAlt, double dAz)
     m_sLogFile.flush();
 #endif
 
-    // convert Az value to HH:MM:SS.T before passing them to the RST
+    // convert Az value to DDD*MM:SS.S
     convertDecAzToDDMMSSs(dAz, sTemp);
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -408,22 +416,26 @@ int RST::setTargetAltAz(double dAlt, double dAz)
     // set target Az
     ssTmp<<":Sz"<<sTemp<<"#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     if(nErr)
         return nErr;
 
-    // set target Alt
+
+    // convert Alt value sDD*MM:SS.S
     convertDecDegToDDMMSS_ForDecl(dAlt, sTemp);
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTargetAltAz]  szTemp(Alt)  : " <<sTemp << std::endl;
     m_sLogFile.flush();
 #endif
+    // set target Alt
     std::stringstream().swap(ssTmp);
-
     ssTmp<<":Sa"<<sTemp<<"#";
-    nErr = sendCommand(ssTmp.str(), sResp, 100); // need a fast error as this command doesn't follow the usual format and doesn't end with #
-    if(sResp.size() && sResp.at(0)=='1')
-        nErr = PLUGIN_OK;
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+    if(nErr)
+        return nErr;
+
     return nErr;
 }
 
@@ -451,7 +463,7 @@ int RST::syncTo(double dRa, double dDec)
     }
     ssTmp << ":Ck" << std::setfill('0') << std::setw(7) << std::fixed << std::setprecision(3) << dRa*15.0 << cSign << std::setfill('0') << std::setw(6)<< std::fixed << std::setprecision(3) << dDec << "#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
 
     return nErr;
 }
@@ -516,28 +528,28 @@ int RST::getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &d
         case '0' :  // Sidereal
             dTrackRaArcSecPerHr = 0;
             dTrackDecArcSecPerHr = 0;
-            bTrackingOn = true;
             break;
         case '1' :  // Solar
             dTrackRaArcSecPerHr = 0;
             dTrackDecArcSecPerHr = 0;
-            bTrackingOn = true;
             break;
         case '2' :  // Lunar
             dTrackRaArcSecPerHr = 0;
             dTrackDecArcSecPerHr = 0;
-            bTrackingOn = true;
             break;
         case '3' :  //  Guide
             dTrackRaArcSecPerHr = 0;
             dTrackDecArcSecPerHr = 0;
-            bTrackingOn = true;
             break;
         default:
-            bTrackingOn = false;
+            dTrackRaArcSecPerHr = 0;
+            dTrackDecArcSecPerHr = 0;
             break;
     }
-    bTrackingOn = true;
+
+    isTrackingOn(bTrackingOn);
+    if(!bTrackingOn)
+        dTrackRaArcSecPerHr = 15.0410681; // Convention to say tracking is off - see TSX documentation
 
     return nErr;
 }
@@ -578,7 +590,7 @@ int RST::startSlewTo(double dRa, double dDec)
     if(nErr)
         return nErr;
 
-    slewTargetRA_DecEpochNow();
+    nErr = slewTargetRA_DecEpochNow();
     return nErr;
 }
 
@@ -592,10 +604,20 @@ int RST::slewTargetRA_DecEpochNow()
     m_sLogFile.flush();
 #endif
 
-    nErr = sendCommand(":MS#", sResp, 0);
-    timer.Reset();
-    return nErr;
+    nErr = sendCommand(":MS#", sResp, 100);
+    if(sResp.size() && nErr)
+        return nErr;
 
+    if(sResp.size()>=4) {
+        if(sResp.at(3) == 'L') {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [slewTargetRA_DecEpochNow] Limit error ? => " << sResp << std::endl;
+            m_sLogFile.flush();
+#endif
+            nErr = ERR_MKS_SLEW_PAST_LIMIT;
+        }
+    }
+    return nErr;
 }
 
 int RST::getNbSlewRates()
@@ -793,11 +815,6 @@ int RST::isSlewToComplete(bool &bComplete)
 
     bComplete = false;
 
-    if(timer.GetElapsedSeconds()<2) {
-        // we're checking for comletion to quickly, assume it's moving for now
-        return nErr;
-    }
-
     nErr = sendCommand(":CL#", sResp);
     if(nErr) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -817,10 +834,10 @@ int RST::isSlewToComplete(bool &bComplete)
     return nErr;
 }
 
-int RST::gotoPark(double dRa, double dDec)
+
+int RST::gotoPark(double dAlt, double dAz)
 {
     int nErr = PLUGIN_OK;
-    double dAz, dAlt;
     std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -828,11 +845,11 @@ int RST::gotoPark(double dRa, double dDec)
     m_sLogFile.flush();
 #endif
 
-    // convert Ra and Dec to Az and Alt
-    m_pTsx->EqToHz(dRa, dDec, dAz, dAlt);
-    
     // set target
-    setTargetAltAz(dAz, dAlt);
+    nErr = setTargetAltAz(dAlt, dAz);
+    if(nErr)
+        return nErr;
+
     // goto in Az mode
     nErr = sendCommand(":MA#", sResp, 0);   // AltAz
 
@@ -844,14 +861,16 @@ int RST::getAtPark(bool &bParked)
 {
     int nErr = PLUGIN_OK;
     bool bComplete;
+    bool bTracking;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Called." << std::endl;
     m_sLogFile.flush();
 #endif
     isSlewToComplete(bComplete);
+    isTrackingOn(bTracking);
 
-    if(bComplete)
+    if(bComplete && !bTracking)
         bParked = true;
     else
         bParked = false;
@@ -869,10 +888,34 @@ int RST::unPark()
     m_sLogFile.flush();
 #endif
 
-    nErr = sendCommand(":CtA#", sResp, 0);
+    nErr = sendCommand(":CtA#", sResp);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     return nErr;
 }
 
+int RST::isTrackingOn(bool &bTrakOn)
+{
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isTrackingOn] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+    bTrakOn = false;
+    nErr = sendCommand(":AT#", sResp);
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isTrackingOn] error " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+
+    if(sResp.size() >= 3 && sResp.at(3) == '1')
+        bTrakOn = true;
+
+    return nErr;
+}
 
 int RST::Abort()
 {
@@ -907,7 +950,7 @@ int RST::syncTime()
 
     ssTmp << ":SL" << std::setfill('0') << std::setw(2) << h << ":" << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << int(sec) << "#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     getLocalTime(m_sTime);
 
     return nErr;
@@ -933,7 +976,7 @@ int RST::syncDate()
 
     ssTmp << ":SC" << std::setfill('0') << std::setw(2) << mm << "/" << std::setfill('0') << std::setw(2) << dd << "/" << std::setfill('0') << std::setw(2) << yy << "#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     getLocalDate(m_sDate);
     return nErr;
 }
@@ -942,7 +985,7 @@ void RST::setSyncDateTimeOnConnect(bool bSync)
 {
     m_bSyncTimeAndDateOnConnect = bSync;
 }
-#pragma mark - Check value format are correct
+
 int RST::setSiteLongitude(const std::string sLongitude)
 {
     int nErr = PLUGIN_OK;
@@ -957,7 +1000,7 @@ int RST::setSiteLongitude(const std::string sLongitude)
     // :SgsDDD*MM'SS#
     ssTmp << ":Sg" << sLongitude << "#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
 
     return nErr;
 }
@@ -975,7 +1018,7 @@ int RST::setSiteLatitude(const std::string sLatitude)
     // :StsDD*MM'SS#
     ssTmp << ":St" << sLatitude << "#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
 
     return nErr;
 }
@@ -993,7 +1036,7 @@ int RST::setSiteTimezone(const std::string sTimezone)
 
     // :SGsHH#
     nErr = sendCommand(ssTmp.str(), sResp, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     return nErr;
 }
 
@@ -1191,7 +1234,6 @@ void RST::convertDecAzToDDMMSSs(double dDeg, std::string &sResult)
     int DD, MM;
     double mm, ss, SS;
     double dNewDeg;
-    char cSign;
     std::stringstream ssTmp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1200,16 +1242,15 @@ void RST::convertDecAzToDDMMSSs(double dDeg, std::string &sResult)
 #endif
 
     sResult.clear();
-    // convert dDeg decimal value to sDD:MM:SS.S
+    // convert dDeg decimal value to DDD*MM:SS.S 
     dNewDeg = std::fabs(dDeg);
-    cSign = dDeg>=0?'+':'-';
     DD = int(dNewDeg);
     mm = dNewDeg - DD;
     MM = int(mm*60);
     ss = (mm*60) - MM;
     SS = ss*60;
 
-    ssTmp << cSign << DD << "*" << std::setfill('0') << std::setw(2) << MM << "'" << std::setfill('0') << std::setw(4) << std::fixed << std::setprecision(1) << SS;
+    ssTmp << std::setfill('0') << std::setw(3) << DD << "*" << std::setfill('0') << std::setw(2) << MM << "'" << std::setfill('0') << std::setw(4) << std::fixed << std::setprecision(1) << SS;
     sResult.assign(ssTmp.str());
 }
 
@@ -1227,7 +1268,7 @@ void RST::convertDecDegToDDMMSS_ForDecl(double dDeg, std::string &sResult)
 #endif
 
     sResult.clear();
-    // convert dDeg decimal value to sDD:MM:SS
+    // convert dDeg decimal value to sDD*MM:SS.S
     dNewDeg = std::fabs(dDeg);
     cSign = dDeg>=0?'+':'-';
     DD = int(dNewDeg);
@@ -1236,7 +1277,7 @@ void RST::convertDecDegToDDMMSS_ForDecl(double dDeg, std::string &sResult)
     ss = (mm*60) - MM;
     SS = ss*60;
 
-    ssTmp << cSign << DD << "*" << std::setfill('0') << std::setw(2) << MM << ":" << std::setfill('0') << std::setw(4) << std::fixed << std::setprecision(1)<< SS;
+    ssTmp << cSign << std::setfill('0') << std::setw(2) << DD << "*" << std::setfill('0') << std::setw(2) << MM << ":" << std::setfill('0') << std::setw(4) << std::fixed << std::setprecision(1)<< SS;
     sResult.assign(ssTmp.str());
 }
 
@@ -1301,7 +1342,7 @@ void RST::convertRaToHHMMSSt(double dRa, std::string &sResult)
 #endif
 
     sResult.clear();
-    // convert Ra value to HH:MM:SS.T before passing them to the RST
+    // convert Ra value to HH:MM:SS.S
     HH = int(dRa);
     hh = dRa - HH;
     MM = int(hh*60);
