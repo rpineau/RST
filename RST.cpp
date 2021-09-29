@@ -346,7 +346,6 @@ int RST::setTarget(double dRa, double dDec)
     std::stringstream ssTmp;
     std::string sResp;
     std::string sTemp;
-    char cSign;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget] Ra  : " << std::fixed << std::setprecision(8) << dRa << std::endl;
@@ -371,15 +370,57 @@ int RST::setTarget(double dRa, double dDec)
         return nErr;
 
     // set target dec
-    convertDecDegToDDMMSS_ForDecl(dDec, sTemp, cSign);
+    convertDecDegToDDMMSS_ForDecl(dDec, sTemp);
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget]  szTemp(Dec)  : " << cSign<<sTemp << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTarget]  szTemp(Dec)  : " <<sTemp << std::endl;
     m_sLogFile.flush();
 #endif
     std::stringstream().swap(ssTmp);
 
-    ssTmp<<":Sd"<<cSign<<sTemp<<"#";
+    ssTmp<<":Sd"<<sTemp<<"#";
+    nErr = sendCommand(ssTmp.str(), sResp, 100); // need a fast error as this command doesn't follow the usual format and doesn't end with #
+    if(sResp.size() && sResp.at(0)=='1')
+        nErr = PLUGIN_OK;
+    return nErr;
+}
+
+int RST::setTargetAltAz(double dAlt, double dAz)
+{
+    int nErr;
+    std::stringstream ssTmp;
+    std::string sResp;
+    std::string sTemp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTargetAltAz] Az  : " << std::fixed << std::setprecision(8) << dAz << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTargetAltAz] Alt : " << std::fixed << std::setprecision(8) << dAlt << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    // convert Az value to HH:MM:SS.T before passing them to the RST
+    convertDecAzToDDMMSSs(dAz, sTemp);
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTargetAltAz] szTemp(Az)  : " << sTemp << std::endl;
+    m_sLogFile.flush();
+#endif
+    // set target Az
+    ssTmp<<":Sz"<<sTemp<<"#";
+    nErr = sendCommand(ssTmp.str(), sResp, 0);
+    if(nErr)
+        return nErr;
+
+    // set target Alt
+    convertDecDegToDDMMSS_ForDecl(dAlt, sTemp);
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTargetAltAz]  szTemp(Alt)  : " <<sTemp << std::endl;
+    m_sLogFile.flush();
+#endif
+    std::stringstream().swap(ssTmp);
+
+    ssTmp<<":Sa"<<sTemp<<"#";
     nErr = sendCommand(ssTmp.str(), sResp, 100); // need a fast error as this command doesn't follow the usual format and doesn't end with #
     if(sResp.size() && sResp.at(0)=='1')
         nErr = PLUGIN_OK;
@@ -390,14 +431,14 @@ int RST::setTarget(double dRa, double dDec)
 int RST::syncTo(double dRa, double dDec)
 {
     int nErr = PLUGIN_OK;
-    bool bAligned;
     std::stringstream ssTmp;
     std::string sResp;
     char cSign;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [syncTo]  Ra  : " << std::fixed << std::setprecision(5) << dRa << std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [syncTo]  Dec : " << std::fixed << std::setprecision(5) << dDec << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [syncTo]  Ra Hours   : " << std::fixed << std::setprecision(5) << dRa << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [syncTo]  Ra Degrees : " << std::fixed << std::setprecision(5) << dRa*15.0 << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [syncTo]  Dec        : " << std::fixed << std::setprecision(5) << dDec << std::endl;
     m_sLogFile.flush();
 #endif
 
@@ -408,7 +449,7 @@ int RST::syncTo(double dRa, double dDec)
     } else {
         cSign = '+';
     }
-    ssTmp << ":Ck" << std::setfill('0') << std::setw(7) << std::fixed << std::setprecision(3) << dRa << cSign << std::setfill('0') << std::setw(6)<< std::fixed << std::setprecision(3) << dDec << "#";
+    ssTmp << ":Ck" << std::setfill('0') << std::setw(7) << std::fixed << std::setprecision(3) << dRa*15.0 << cSign << std::setfill('0') << std::setw(6)<< std::fixed << std::setprecision(3) << dDec << "#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -552,8 +593,6 @@ int RST::slewTargetRA_DecEpochNow()
 #endif
 
     nErr = sendCommand(":MS#", sResp, 0);
-    // nErr = sendCommand(":MA#", sResp, 0);   // AltAz
-
     timer.Reset();
     return nErr;
 
@@ -781,13 +820,22 @@ int RST::isSlewToComplete(bool &bComplete)
 int RST::gotoPark(double dRa, double dDec)
 {
     int nErr = PLUGIN_OK;
+    double dAz, dAlt;
+    std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [gotoPark] Called." << std::endl;
     m_sLogFile.flush();
 #endif
 
-    nErr = startSlewTo(dRa, dDec);
+    // convert Ra and Dec to Az and Alt
+    m_pTsx->EqToHz(dRa, dDec, dAz, dAlt);
+    
+    // set target
+    setTargetAltAz(dAz, dAlt);
+    // goto in Az mode
+    nErr = sendCommand(":MA#", sResp, 0);   // AltAz
+
     return nErr;
 }
 
@@ -795,11 +843,18 @@ int RST::gotoPark(double dRa, double dDec)
 int RST::getAtPark(bool &bParked)
 {
     int nErr = PLUGIN_OK;
+    bool bComplete;
+
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Called." << std::endl;
     m_sLogFile.flush();
 #endif
-    bParked = false;
+    isSlewToComplete(bComplete);
+
+    if(bComplete)
+        bParked = true;
+    else
+        bParked = false;
 
     return nErr;
 }
@@ -942,7 +997,6 @@ int RST::setSiteTimezone(const std::string sTimezone)
     return nErr;
 }
 
-#pragma mark - TODO : Parse response
 int RST::getSiteLongitude(std::string &sLongitude)
 {
     int nErr = PLUGIN_OK;
@@ -955,12 +1009,11 @@ int RST::getSiteLongitude(std::string &sLongitude)
 
     nErr = sendCommand(":Gg#", sResp);
     if(!nErr) {
-        sLongitude.assign(sResp);
+        sLongitude.assign(sResp.substr(3));
     }
     return nErr;
 }
 
-#pragma mark - TODO : Parse response
 int RST::getSiteLatitude(std::string &sLatitude)
 {
     int nErr = PLUGIN_OK;
@@ -973,7 +1026,7 @@ int RST::getSiteLatitude(std::string &sLatitude)
 
     nErr = sendCommand(":Gt#", sResp);
     if(!nErr) {
-        sLatitude.assign(sResp);
+        sLatitude.assign(sResp.substr(3));
     }
 
     return nErr;
@@ -1004,11 +1057,7 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
     std::string sLong;
     std::string sLat;
     std::string sTimeZone;
-    std::stringstream ssTmp;
-
     std::stringstream  ssHH, ssMM;
-    char cSignLong;
-    char cSignLat;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] Called." << std::endl;
@@ -1023,8 +1072,8 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
     m_sLogFile.flush();
 #endif
 
-    convertDecDegToDDMMSS(dLongitude, sLong, cSignLong);
-    convertDecDegToDDMMSS(dLatitute, sLat, cSignLat);
+    convertDecDegToDDMMSS(dLongitude, sLong);
+    convertDecDegToDDMMSS(dLatitute, sLat);
     
     ssHH << std::setfill('0') << std::setw(2) << int(std::fabs(dTimeZone));
     ssMM << std::setfill('0') << std::setw(2) << int((std::fabs(dTimeZone) - int(std::fabs(dTimeZone)))) * 100;
@@ -1034,12 +1083,9 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
 
     sTimeZone = std::to_string(-dTimeZone);
 
-    ssTmp<< cSignLong << sLong;
-    sLong.assign(ssTmp.str());
+    sLong.assign(sLong);
 
-    std::stringstream().swap(ssTmp);
-    ssTmp<< cSignLat << sLat;
-    sLat.assign(ssTmp.str());
+    sLat.assign(sLat);
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] sLong      : " << sLong << std::endl;
@@ -1113,12 +1159,13 @@ int RST::getLocalDate(std::string &sDate)
 }
 
 
-void RST::convertDecDegToDDMMSS(double dDeg, std::string &sResult, char &cSign)
+void RST::convertDecDegToDDMMSS(double dDeg, std::string &sResult)
 {
     int DD, MM, SS;
     double mm, ss;
     double dNewDeg;
     std::stringstream ssTmp;
+    char cSign;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [convertDecDegToDDMMSS] Called." << std::endl;
@@ -1135,15 +1182,43 @@ void RST::convertDecDegToDDMMSS(double dDeg, std::string &sResult, char &cSign)
     ss = (mm*60) - MM;
     SS = int(std::ceil(ss*60));
 
-    ssTmp << DD << "*" << std::setfill('0') << std::setw(2) << MM << "'" << std::setfill('0') << std::setw(2) << SS;
+    ssTmp << cSign << DD << "*" << std::setfill('0') << std::setw(2) << MM << "'" << std::setfill('0') << std::setw(2) << SS;
     sResult.assign(ssTmp.str());
 }
 
-void RST::convertDecDegToDDMMSS_ForDecl(double dDeg, std::string &sResult, char &cSign)
+void RST::convertDecAzToDDMMSSs(double dDeg, std::string &sResult)
 {
     int DD, MM;
     double mm, ss, SS;
     double dNewDeg;
+    char cSign;
+    std::stringstream ssTmp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [convertDecDegToDDMMSS] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    sResult.clear();
+    // convert dDeg decimal value to sDD:MM:SS.S
+    dNewDeg = std::fabs(dDeg);
+    cSign = dDeg>=0?'+':'-';
+    DD = int(dNewDeg);
+    mm = dNewDeg - DD;
+    MM = int(mm*60);
+    ss = (mm*60) - MM;
+    SS = ss*60;
+
+    ssTmp << cSign << DD << "*" << std::setfill('0') << std::setw(2) << MM << "'" << std::setfill('0') << std::setw(4) << std::fixed << std::setprecision(1) << SS;
+    sResult.assign(ssTmp.str());
+}
+
+void RST::convertDecDegToDDMMSS_ForDecl(double dDeg, std::string &sResult)
+{
+    int DD, MM;
+    double mm, ss, SS;
+    double dNewDeg;
+    char cSign;
     std::stringstream ssTmp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1161,7 +1236,7 @@ void RST::convertDecDegToDDMMSS_ForDecl(double dDeg, std::string &sResult, char 
     ss = (mm*60) - MM;
     SS = ss*60;
 
-    ssTmp << DD << "*" << std::setfill('0') << std::setw(2) << MM << ":" << std::setfill('0') << std::setw(4) << std::fixed << std::setprecision(1)<< SS;
+    ssTmp << cSign << DD << "*" << std::setfill('0') << std::setw(2) << MM << ":" << std::setfill('0') << std::setw(4) << std::fixed << std::setprecision(1)<< SS;
     sResult.assign(ssTmp.str());
 }
 

@@ -134,13 +134,14 @@ private:
     int     getSiteTZ(std::string &sTimeZone);
 
     int     setTarget(double dRa, double dDec);
+    int     setTargetAltAz(double dAlt, double dAz);
     int     slewTargetRA_DecEpochNow();
 
-    void    convertDecDegToDDMMSS(double dDeg, std::string &sResult, char &cSign);
-    void    convertDecDegToDDMMSS_ForDecl(double dDeg, std::string &sResult, char &cSign);
+    void    convertDecDegToDDMMSS(double dDeg, std::string &sResult);
+    void    convertDecDegToDDMMSS_ForDecl(double dDeg, std::string &sResult);
+    void    convertDecAzToDDMMSSs(double dDeg, std::string &sResult);
 
     int     convertDDMMSSToDecDeg(const std::string sStrDeg, double &dDecDeg);
-    
     void    convertRaToHHMMSSt(double dRa, std::string &sResult);
     int     convertHHMMSStToRa(const std::string szStrRa, double &dRa);
 

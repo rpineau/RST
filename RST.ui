@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>461</width>
-    <height>634</height>
+    <width>460</width>
+    <height>440</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -18,14 +18,14 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>461</width>
-    <height>634</height>
+    <width>460</width>
+    <height>440</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>461</width>
-    <height>634</height>
+    <width>460</width>
+    <height>440</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -70,8 +70,8 @@
      <widget class="QPushButton" name="pushButtonOK">
       <property name="geometry">
        <rect>
-        <x>257</x>
-        <y>570</y>
+        <x>256</x>
+        <y>368</y>
         <width>81</width>
         <height>32</height>
        </rect>
@@ -86,8 +86,8 @@
      <widget class="QPushButton" name="pushButtonCancel">
       <property name="geometry">
        <rect>
-        <x>340</x>
-        <y>570</y>
+        <x>339</x>
+        <y>368</y>
         <width>81</width>
         <height>32</height>
        </rect>
@@ -100,7 +100,7 @@
       <property name="geometry">
        <rect>
         <x>20</x>
-        <y>150</y>
+        <y>96</y>
         <width>400</width>
         <height>248</height>
        </rect>
@@ -112,7 +112,7 @@
        <property name="geometry">
         <rect>
          <x>312</x>
-         <y>48</y>
+         <y>72</y>
          <width>72</width>
          <height>24</height>
         </rect>
@@ -125,7 +125,7 @@
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>48</y>
+         <y>72</y>
          <width>290</width>
          <height>24</height>
         </rect>
@@ -166,19 +166,6 @@
         <string>Sync</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_3">
-       <property name="geometry">
-        <rect>
-         <x>70</x>
-         <y>24</y>
-         <width>260</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#ff0000;&quot;&gt;Syncing any of these will void Alignement.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-       </property>
-      </widget>
       <widget class="QLabel" name="label_4">
        <property name="geometry">
         <rect>
@@ -189,7 +176,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>ATCS date and time :</string>
+        <string>RST date and time :</string>
        </property>
       </widget>
       <widget class="QLabel" name="time_date">
@@ -205,32 +192,6 @@
         <string>dd/mm/yy  -  hh:mm:ss</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_8">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>72</y>
-         <width>120</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>ATCS Site Name :</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="siteName">
-       <property name="geometry">
-        <rect>
-         <x>140</x>
-         <y>72</y>
-         <width>200</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>NNNNNNNNNNNNNN</string>
-       </property>
-      </widget>
       <widget class="QLabel" name="label_9">
        <property name="geometry">
         <rect>
@@ -241,7 +202,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>ATCS Longitude :</string>
+        <string>RST Longitude :</string>
        </property>
       </widget>
       <widget class="QLabel" name="longitude">
@@ -267,7 +228,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>ATCS Latitude :</string>
+        <string>RST Latitude :</string>
        </property>
       </widget>
       <widget class="QLabel" name="latitude">
@@ -280,7 +241,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>+XXX YY SS.s</string>
+        <string>+XX YY SS.s</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_12">
@@ -293,7 +254,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>ATCS Time Zone :</string>
+        <string>RST Time Zone :</string>
        </property>
       </widget>
       <widget class="QLabel" name="timezone">
@@ -306,75 +267,20 @@
         </rect>
        </property>
        <property name="text">
-        <string>HH:MM W</string>
+        <string>GMT +/-XX</string>
        </property>
       </widget>
-     </widget>
-     <widget class="QGroupBox" name="groupBox_2">
-      <property name="geometry">
-       <rect>
-        <x>20</x>
-        <y>416</y>
-        <width>400</width>
-        <height>73</height>
-       </rect>
-      </property>
-      <property name="title">
-       <string>Settings</string>
-      </property>
-      <widget class="QLabel" name="label_6">
+      <widget class="QCheckBox" name="checkBox">
        <property name="geometry">
         <rect>
-         <x>10</x>
+         <x>40</x>
          <y>32</y>
-         <width>270</width>
-         <height>24</height>
+         <width>328</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
-        <string>Set park position to current mount position :</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QPushButton" name="pushButton_3">
-       <property name="geometry">
-        <rect>
-         <x>296</x>
-         <y>32</y>
-         <width>64</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Set</string>
-       </property>
-      </widget>
-     </widget>
-     <widget class="QGroupBox" name="groupBox_4">
-      <property name="geometry">
-       <rect>
-        <x>20</x>
-        <y>500</y>
-        <width>400</width>
-        <height>60</height>
-       </rect>
-      </property>
-      <property name="title">
-       <string>highest priority active fault</string>
-      </property>
-      <widget class="QLabel" name="activeFault">
-       <property name="geometry">
-        <rect>
-         <x>20</x>
-         <y>24</y>
-         <width>360</width>
-         <height>24</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>None</string>
+        <string>Automatically sync time and location on connect</string>
        </property>
       </widget>
      </widget>
@@ -388,7 +294,7 @@
        </rect>
       </property>
       <property name="text">
-       <string>© RTI-Zone.org, 2020</string>
+       <string>© RTI-Zone.org, 2021</string>
       </property>
      </widget>
      <widget class="QLabel" name="label_logo_2">
