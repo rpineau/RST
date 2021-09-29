@@ -46,6 +46,7 @@ X2Mount::X2Mount(const char* pszDriverSelection,
      }
 
     mRST.setSyncDateTimeOnConnect(true);
+    mRST.setSyncLocationConnect(true);
 }
 
 X2Mount::~X2Mount()
@@ -273,8 +274,8 @@ void X2Mount::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
 	}
 
     if (!strcmp(pszEvent, "on_pushButton_clicked")) {
-        // TSX longitude is + going west and - going east, so passing the opposite
-        mRST.setSiteData( - m_pTheSkyXForMounts->longitude(),
+        // TSX longitude is + going west and - going east, same as the RST
+        mRST.setSiteData( m_pTheSkyXForMounts->longitude(),
                           m_pTheSkyXForMounts->latitude(),
                           m_pTheSkyXForMounts->timeZone());
     }

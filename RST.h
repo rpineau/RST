@@ -85,6 +85,7 @@ public:
 
     int setSiteData(double dLongitude, double dLatitute, double dTimeZone);
     int getSiteData(std::string &sLongitude, std::string &sLatitude, std::string &sTimeZone);
+    void setSyncLocationConnect(bool bSync);
 
     int getLocalTime(std::string &sTime);
     int getLocalDate(std::string &sDate);
@@ -104,6 +105,8 @@ private:
     std::string m_sFirmwareVersion;
 
     bool    m_bSyncTimeAndDateOnConnect;
+    bool    m_bSyncLocationOnConnect;
+
     MountTypeInterface::Type    m_mountType;
     
     std::string     m_sTime;
@@ -134,6 +137,7 @@ private:
     int     slewTargetRA_DecEpochNow();
 
     void    convertDecDegToDDMMSS(double dDeg, std::string &sResult, char &cSign);
+    void    convertDecDegToDDMMSS_ForDecl(double dDeg, std::string &sResult, char &cSign);
 
     int     convertDDMMSSToDecDeg(const std::string sStrDeg, double &dDecDeg);
     
