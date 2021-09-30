@@ -873,13 +873,80 @@ int RST::unPark()
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [unPark] Called." << std::endl;
     m_sLogFile.flush();
 #endif
+    m_bUnparking = true;
+
+    nErr = homeMount();
+    return nErr;
+}
+
+int RST::isUnparkDone(bool &bComplete)
+{
+    int nErr = PLUGIN_OK;
+    bool bIsHomed = false;
+    bool bAtPArk;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    bComplete = false;
+    if(!m_bUnparking) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] not unparking, checking at park state " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+        nErr = getAtPark(bAtPArk);
+        if(bAtPArk)
+            bComplete = true;
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bAtPArk   " << (bAtPArk?"Yes":"No") << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bComplete " << (bComplete?"Yes":"No") << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] Chcking if homing is done" << nErr << std::endl;
+    m_sLogFile.flush();
+#endif
+    nErr = isHomingDone(bIsHomed);
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] error " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bIsHomed   " << (bIsHomed?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bComplete " << (bComplete?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    if(!bIsHomed)
+        return nErr;
+
+    // unparking and homing is done, enable tracking a sidereal rate
+    m_bUnparking = false;
+    bComplete = true;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bIsHomed   " << (bIsHomed?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bComplete " << (bComplete?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
 
     nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
     std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
     nErr |= sendCommand(":CtR#", sResp); // set tracking to sidereal
     std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
+
     return nErr;
 }
+
 
 int RST::homeMount()
 {
@@ -891,7 +958,7 @@ int RST::homeMount()
     m_sLogFile.flush();
 #endif
 
-    nErr = sendCommand(":Ch#", sResp);
+    nErr = sendCommand(":Ch#", sResp, 0);
     if(nErr) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [homeMount] error " << nErr << std::endl;
@@ -902,7 +969,8 @@ int RST::homeMount()
     return nErr;
 }
 
-int RST::isHomingDone(bool bIsHomed)
+
+int RST::isHomingDone(bool &bIsHomed)
 {
     int nErr = PLUGIN_OK;
     std::string sResp;
@@ -924,7 +992,6 @@ int RST::isHomingDone(bool bIsHomed)
     if(sResp.size() >= 3 && sResp.at(3) == '0') {
             bIsHomed = true;
     }
-
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] bIsHomed : " << (bIsHomed?"Yes":"No") <<  std::endl;
        m_sLogFile.flush();

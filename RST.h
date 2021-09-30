@@ -77,6 +77,7 @@ public:
     int gotoPark(double dAlt, double dAz);
     int getAtPark(bool &bParked);
     int unPark();
+    int isUnparkDone(bool &bcomplete);
     int isTrackingOn(bool &bTrakOn);
 
     int getLimits(double &dHoursEast, double &dHoursWest);
@@ -94,7 +95,7 @@ public:
     void setSyncDateTimeOnConnect(bool bSync);
 
     int homeMount();
-    int isHomingDone(bool bIsHomed);
+    int isHomingDone(bool &bIsHomed);
 
 #ifdef PLUGIN_DEBUG
     void log(std::string sLogEntry);
@@ -110,7 +111,8 @@ private:
     bool    m_bSyncTimeAndDateOnConnect;
     bool    m_bSyncLocationOnConnect;
     bool    m_bHomeOnUnpark;
-    
+    bool    m_bUnparking;
+
     std::string     m_sTime;
     std::string     m_sDate;
 
