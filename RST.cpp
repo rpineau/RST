@@ -91,8 +91,10 @@ int RST::Connect(char *pszPort)
 
     // usb mode on
     sendCommand(":AU#", sResp, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     // request protocol Rainbow
     sendCommand(":AR#", sResp, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
 
     if(m_bSyncTimeAndDateOnConnect) {
         syncTime();
@@ -608,6 +610,8 @@ int RST::slewTargetRA_DecEpochNow()
     if(sResp.size() && nErr)
         return nErr;
 
+    nErr = PLUGIN_OK;
+
     if(sResp.size()>=4) {
         if(sResp.at(3) == 'L') {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -867,13 +871,9 @@ int RST::getAtPark(bool &bParked)
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Called." << std::endl;
     m_sLogFile.flush();
 #endif
-    isSlewToComplete(bComplete);
     isTrackingOn(bTracking);
 
-    if(bComplete && !bTracking)
-        bParked = true;
-    else
-        bParked = false;
+    bParked = bTracking?false:true;
 
     return nErr;
 }
@@ -888,8 +888,10 @@ int RST::unPark()
     m_sLogFile.flush();
 #endif
 
-    nErr = sendCommand(":CtA#", sResp);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+    nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
+    std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
+    nErr |= sendCommand(":CtR#", sResp); // set tracking to sidereal
+    std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
     return nErr;
 }
 
@@ -928,7 +930,6 @@ int RST::Abort()
 #endif
 
     nErr = sendCommand(":Q#", sResp, 0);
-    nErr |= sendCommand(":CtL#", sResp, 0);
     return nErr;
 }
 
@@ -1033,8 +1034,7 @@ int RST::setSiteTimezone(const std::string sTimezone)
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteTimezone] Called." << std::endl;
     m_sLogFile.flush();
 #endif
-
-    // :SGsHH#
+    ssTmp << ":SG" << sTimezone << "#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     return nErr;
@@ -1099,8 +1099,10 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
     int nErr = PLUGIN_OK;
     std::string sLong;
     std::string sLat;
-    std::string sTimeZone;
+    std::stringstream ssTimeZone;
     std::stringstream  ssHH, ssMM;
+    char cSign;
+    double dTimeZoneNew;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] Called." << std::endl;
@@ -1117,14 +1119,12 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
 
     convertDecDegToDDMMSS(dLongitude, sLong);
     convertDecDegToDDMMSS(dLatitute, sLat);
-    
-    ssHH << std::setfill('0') << std::setw(2) << int(std::fabs(dTimeZone));
-    ssMM << std::setfill('0') << std::setw(2) << int((std::fabs(dTimeZone) - int(std::fabs(dTimeZone)))) * 100;
 
-    // longitude    :SgsDDD*MM'SS #    ->   :Sg-127*30'20#
-    // latitude     :StsDD*MM'SS #     ->   :St+37*20'30#
+    dTimeZoneNew = -dTimeZone;
+    cSign = dTimeZoneNew>=0?'+':'-';
+    dTimeZoneNew=std::fabs(dTimeZone);
 
-    sTimeZone = std::to_string(-dTimeZone);
+    ssTimeZone << cSign << std::setfill('0') << std::setw(2) << dTimeZoneNew;
 
     sLong.assign(sLong);
 
@@ -1133,13 +1133,13 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] sLong      : " << sLong << std::endl;
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] sLat       : " << sLat<< std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] ssTimeZone : " << sTimeZone << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] ssTimeZone : " << ssTimeZone.str() << std::endl;
     m_sLogFile.flush();
 #endif
 
     nErr = setSiteLongitude(sLong);
     nErr |= setSiteLatitude(sLat);
-    nErr |= setSiteTimezone(sTimeZone);
+    nErr |= setSiteTimezone(ssTimeZone.str());
 
     return nErr;
 }
