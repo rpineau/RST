@@ -10,6 +10,9 @@
 #include <thread>
 #include <ctime>
 #include <cmath>
+#include <algorithm>
+
+#include <stdlib.h>
 
 #include "../../licensedinterfaces/sberrorx.h"
 #include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
@@ -49,9 +52,6 @@ public:
     void setTSX(TheSkyXFacadeForDriversInterface *pTSX) { m_pTsx = pTSX;};
 
     int getFirmwareVersion(std::string &sFirmware);
-
-    void setMountMode(MountTypeInterface::Type mountType);
-    MountTypeInterface::Type mountType();
 
     int getRaAndDec(double &dRa, double &dDec);
     int syncTo(double dRa, double dDec);
@@ -93,6 +93,9 @@ public:
     int syncDate();
     void setSyncDateTimeOnConnect(bool bSync);
 
+    int homeMount();
+    int isHomingDone(bool bIsHomed);
+
 #ifdef PLUGIN_DEBUG
     void log(std::string sLogEntry);
 #endif
@@ -106,8 +109,7 @@ private:
 
     bool    m_bSyncTimeAndDateOnConnect;
     bool    m_bSyncLocationOnConnect;
-
-    MountTypeInterface::Type    m_mountType;
+    bool    m_bHomeOnUnpark;
     
     std::string     m_sTime;
     std::string     m_sDate;

@@ -31,6 +31,9 @@
 
 #define PARENT_KEY			"RSTMount"
 #define CHILD_KEY_PORT_NAME "PortName"
+#define CHILD_KEY_SYNC_TIME "SyncTime"
+#define CHILD_KEY_PARK_POS  "ParkPos"
+
 #define MAX_PORT_NAME_SIZE 120
 
 
@@ -211,7 +214,10 @@ private:
 	bool m_bSynced;
 	bool m_bParked;
 
-	char m_PortName[MAX_PORT_NAME_SIZE];
+    int m_nParkingPosition;
+    bool m_bSyncOnConnect;
+
+    char m_PortName[MAX_PORT_NAME_SIZE];
 	
 	int m_CurrentRateIndex;
 

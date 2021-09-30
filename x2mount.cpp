@@ -23,6 +23,8 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 	m_bSynced = false;
 	m_bParked = false;
     m_bLinked = false;
+    m_bSyncOnConnect = false;
+    m_nParkingPosition = 1;
 
     mRST.setSerxPointer(m_pSerX);
     mRST.setTSX(m_pTheSkyXForMounts);
@@ -32,9 +34,13 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 	// Read the current stored values for the settings
 	if (m_pIniUtil)
 	{
+        m_bSyncOnConnect = (m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SYNC_TIME, 0) == 0 ? false : true);
+        m_nParkingPosition = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_PARK_POS, 1);
+        
 	}
 
     // set mount alignement type and meridian avoidance mode.
+    /*
     if(strstr(pszDriverSelection,"Fork")) {
         mRST.setMountMode(MountTypeInterface::Symmetrical_Equatorial);
     }
@@ -44,9 +50,9 @@ X2Mount::X2Mount(const char* pszDriverSelection,
      else {
          mRST.setMountMode(MountTypeInterface::AltAz);
      }
-
-    mRST.setSyncDateTimeOnConnect(true);
-    mRST.setSyncLocationConnect(true);
+*/
+    mRST.setSyncDateTimeOnConnect(m_bSyncOnConnect);
+    mRST.setSyncLocationConnect(m_bSyncOnConnect);
 }
 
 X2Mount::~X2Mount()
@@ -220,10 +226,7 @@ int X2Mount::execModalSettingsDialog(void)
 	// Set values in the userinterface
     if(m_bLinked) {
         dx->setEnabled("pushButton",true);
-        dx->setEnabled("pushButton_2",true);
         dx->setEnabled("pushButton_3",true);
-        dx->setEnabled("alignmentType",true);
-        dx->setEnabled("pushButton_4",true);
 
         nErr = mRST.getLocalTime(sTime);
         nErr |= mRST.getLocalDate(sDate);
@@ -231,7 +234,13 @@ int X2Mount::execModalSettingsDialog(void)
             sTmp =sDate + " - " + sTime;
             dx->setText("time_date", sTmp.c_str());
         }
+        mRST.getSiteData(sLongitude, sLatitude, sTimeZone);
+        sTimeZone = std::string("GMT ") + sTimeZone;
 
+        dx->setText("longitude", sLongitude.c_str());
+        dx->setText("latitude", sLatitude.c_str());
+        dx->setText("timezone", sTimeZone.c_str());
+        dx->setCurrentIndex("comboBox", m_nParkingPosition-1);
     }
     else {
         dx->setText("time_date", "");
@@ -240,17 +249,21 @@ int X2Mount::execModalSettingsDialog(void)
         dx->setText("latitude", "");
         dx->setText("timezone", "");
         dx->setEnabled("pushButton",false);
-        dx->setEnabled("pushButton_2",false);
         dx->setEnabled("pushButton_3",false);
-        dx->setEnabled("alignmentType",false);
-        dx->setEnabled("pushButton_4",false);
     }
-	//Display the user interface
+
+    dx->setChecked("checkBox", (m_bSyncOnConnect?1:0));
+
+    //Display the user interface
 	if ((nErr = ui->exec(bPressedOK)))
 		return nErr;
 	
 	//Retreive values from the user interface
 	if (bPressedOK) {
+        m_bSyncOnConnect = (dx->isChecked("checkBox")==1?true:false);
+        m_nParkingPosition = dx->currentIndex("comboBox") + 1;
+        nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_SYNC_TIME, (m_bSyncOnConnect?1:0));
+        nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_PARK_POS, m_nParkingPosition);
 	}
 	return nErr;
 }
@@ -258,30 +271,44 @@ int X2Mount::execModalSettingsDialog(void)
 void X2Mount::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
 {
     int nErr = SB_OK;
-    std::string sTmpBuf;
+    std::string sLongitude;
+    std::string sLatitude;
+    std::string sTimeZone;
     std::string sTime;
     std::string sDate;
+    std::string sTmp;
 
     if(!m_bLinked)
         return ;
 
-#ifdef PLUGIN_DEBUG
-    mRST.log("X2Mount::uiEvent : " + std::string(pszEvent));
-#endif
-
 	if (!strcmp(pszEvent, "on_timer")) {
-
+        nErr = mRST.getLocalTime(sTime);
+        nErr |= mRST.getLocalDate(sDate);
+        if(!nErr) {
+            sTmp =sDate + " - " + sTime;
+            uiex->setText("time_date", sTmp.c_str());
+        }
 	}
 
     if (!strcmp(pszEvent, "on_pushButton_clicked")) {
-        // TSX longitude is + going west and - going east, same as the RST
+        mRST.syncDate();
+        mRST.syncTime();
+        nErr = mRST.getLocalTime(sTime);
+        nErr |= mRST.getLocalDate(sDate);
+        if(!nErr) {
+            sTmp =sDate + " - " + sTime;
+            uiex->setText("time_date", sTmp.c_str());
+        }
+
         mRST.setSiteData( m_pTheSkyXForMounts->longitude(),
                           m_pTheSkyXForMounts->latitude(),
                           m_pTheSkyXForMounts->timeZone());
-    }
-    
+        mRST.getSiteData(sLongitude, sLatitude, sTimeZone);
+        sTimeZone = std::string("GMT ") + sTimeZone;
 
-    if (!strcmp(pszEvent, "on_pushButton_2_clicked")) {
+        uiex->setText("longitude", sLongitude.c_str());
+        uiex->setText("latitude", sLatitude.c_str());
+        uiex->setText("timezone", sTimeZone.c_str());
     }
 
     if (!strcmp(pszEvent, "on_pushButton_3_clicked")) {
@@ -687,7 +714,7 @@ bool X2Mount::isParked(void)
 
 int X2Mount::startPark(const double& dAz, const double& dAlt)
 {
-	double dRa, dDec;
+	double dParkAz, dPArkAlt;
 	int nErr = SB_OK;
 
     if(!m_bLinked)
@@ -698,8 +725,30 @@ int X2Mount::startPark(const double& dAz, const double& dAlt)
     mRST.log("X2Mount::startPark");
 #endif
     // for now TSX pass 0.00 for both values.
-    
-    nErr = mRST.gotoPark(dAlt, dAz);
+    // so we overrides this
+    switch (m_nParkingPosition) {
+        case 1:
+            dParkAz = 270.00;
+            dPArkAlt = 0.00;
+            break;
+
+        case 2:
+            dParkAz = 180.00;
+            dPArkAlt = 0.00;
+            break;
+
+        case 3:
+            dParkAz = 90.00;
+            dPArkAlt = 0.00;
+            break;
+
+        default:
+            dParkAz = 270.00;
+            dPArkAlt = 0.00;
+            break;
+    }
+
+    nErr = mRST.gotoPark(dPArkAlt, dParkAz);
     if (nErr) {
 #ifdef PLUGIN_DEBUG
         mRST.log("X2Mount::startPark error " + std::to_string(nErr));
@@ -841,6 +890,14 @@ double X2Mount::flipHourAngle()
 	return 0.0;
 }
 
+MountTypeInterface::Type X2Mount::mountType()
+{
+#ifdef PLUGIN_DEBUG
+    mRST.log("X2Mount::mountType");
+#endif
+
+    return  MountTypeInterface::Symmetrical_Equatorial;
+}
 
 int X2Mount::gemLimits(double& dHoursEast, double& dHoursWest)
 {
@@ -874,16 +931,6 @@ int X2Mount::gemLimits(double& dHoursEast, double& dHoursWest)
 
     return SB_OK;
 }
-
-MountTypeInterface::Type X2Mount::mountType()
-{
-#ifdef PLUGIN_DEBUG
-    mRST.log("X2Mount::mountType");
-#endif
-
-    return  mRST.mountType();
-}
-
 
 #pragma mark - SerialPortParams2Interface
 
