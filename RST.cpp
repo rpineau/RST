@@ -1357,7 +1357,7 @@ void RST::convertDecDegToDDMMSS(double dDeg, std::string &sResult)
     mm = dNewDeg - DD;
     MM = int(mm*60);
     ss = (mm*60) - MM;
-    SS = int(std::roundf(ss*60));
+    SS = int(std::round(ss*60));
 
     ssTmp << cSign << DD << "*" << std::setfill('0') << std::setw(2) << MM << "'" << std::setfill('0') << std::setw(2) << SS;
     sResult.assign(ssTmp.str());
