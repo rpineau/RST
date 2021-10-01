@@ -481,7 +481,7 @@ bool X2Mount::isSynced(void)
 }
 
 #pragma mark - TrackingRatesInterface
-int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates, const double& dRaRateArcSecPerSec, const double& dDecRateArcSecPerSec)
+int X2Mount::setTrackingRates(const bool& bSiderialTrackingOn, const bool& bIgnoreRates, const double& dRaRateArcSecPerSec, const double& dDecRateArcSecPerSec)
 {
     int nErr = SB_OK;
     if(!m_bLinked)
@@ -489,12 +489,12 @@ int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates,
 
     X2MutexLocker ml(GetMutex());
 
-    nErr = mRST.setTrackingRates(bTrackingOn, bIgnoreRates, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
+    nErr = mRST.setTrackingRates(bSiderialTrackingOn, bIgnoreRates, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
 
     return nErr;
 }
 
-int X2Mount::trackingRates(bool& bTrackingOn, double& dRaRateArcSecPerSec, double& dDecRateArcSecPerSec)
+int X2Mount::trackingRates(bool& bSiderialTrackingOn, double& dRaRateArcSecPerSec, double& dDecRateArcSecPerSec)
 {
     int nErr = SB_OK;
 
@@ -503,7 +503,7 @@ int X2Mount::trackingRates(bool& bTrackingOn, double& dRaRateArcSecPerSec, doubl
 
     X2MutexLocker ml(GetMutex());
     
-    nErr = mRST.getTrackRates(bTrackingOn, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
+    nErr = mRST.getTrackRates(bSiderialTrackingOn, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
     if(nErr) {
         return ERR_CMDFAILED;
     }

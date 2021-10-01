@@ -78,13 +78,7 @@ int RST::Connect(char *pszPort)
         setSiteData(m_pTsx->longitude(),
                     m_pTsx->latitude(),
                     m_pTsx->timeZone());
-        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     }
-
-    sendCommand(":GA#", sResp);
-    sendCommand(":GZ#", sResp);
-    sendCommand(":GR#", sResp);
-    sendCommand(":GD#", sResp);
 
     return SB_OK;
 }
@@ -446,21 +440,21 @@ int RST::isAligned(bool &bAligned)
 }
 
 #pragma mark - tracking rates
-int RST::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec)
+int RST::setTrackingRates(bool bSiderialTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec)
 {
     int nErr = PLUGIN_OK;
     std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] Called." << std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] bTrackingOn : " << (bTrackingOn?"Yes":"No") << std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] bIgnoreRates." << (bIgnoreRates?"Yes":"No") << std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] dRaRateArcSecPerSec : " << std::fixed << std::setprecision(8) << dRaRateArcSecPerSec << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] bSiderialTrackingOn  : " << (bSiderialTrackingOn?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] bIgnoreRates         : " << (bIgnoreRates?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] dRaRateArcSecPerSec  : " << std::fixed << std::setprecision(8) << dRaRateArcSecPerSec << std::endl;
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] dDecRateArcSecPerSec : " << std::fixed << std::setprecision(8) << dDecRateArcSecPerSec << std::endl;
     m_sLogFile.flush();
 #endif
 
-    if(!bTrackingOn) { // stop tracking
+    if(!bSiderialTrackingOn && bIgnoreRates) { // stop tracking
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to stopped" << std::endl;
         m_sLogFile.flush();
@@ -470,7 +464,7 @@ int RST::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArc
         m_dDecRateArcSecPerSec = 0.0;
     }
     // sidereal
-    else if(bTrackingOn && bIgnoreRates) {
+    else if(bSiderialTrackingOn && bIgnoreRates) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Sidereal" << std::endl;
         m_sLogFile.flush();
@@ -513,10 +507,11 @@ int RST::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArc
     return nErr;
 }
 
-int RST::getTrackRates(bool &bTrackingOn, double &dRaRateArcSecPerSec, double &dDecRateArcSecPerSec)
+int RST::getTrackRates(bool &bSiderialTrackingOn, double &dRaRateArcSecPerSec, double &dDecRateArcSecPerSec)
 {
     int nErr = PLUGIN_OK;
     std::string sResp;
+    bool bTrackingOn;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getTrackRates] Called." << std::endl;
@@ -527,6 +522,7 @@ int RST::getTrackRates(bool &bTrackingOn, double &dRaRateArcSecPerSec, double &d
     if(!bTrackingOn) {
         dRaRateArcSecPerSec = 15.0410681; // Convention to say tracking is off - see TSX documentation
         dDecRateArcSecPerSec = 0;
+        bSiderialTrackingOn = false;
         return nErr;
     }
 
@@ -538,33 +534,33 @@ int RST::getTrackRates(bool &bTrackingOn, double &dRaRateArcSecPerSec, double &d
         case '0' :  // Sidereal
             dRaRateArcSecPerSec = 0.0;
             dDecRateArcSecPerSec = 0.0;
-            bTrackingOn = true;
+            bSiderialTrackingOn = true;
             break;
         case '1' :  // Solar
             dRaRateArcSecPerSec = m_dRaRateArcSecPerSec;
             dDecRateArcSecPerSec = m_dDecRateArcSecPerSec;
-            bTrackingOn = false;
+            bSiderialTrackingOn = false;
             break;
         case '2' :  // Lunar
             dRaRateArcSecPerSec = m_dRaRateArcSecPerSec;
             dDecRateArcSecPerSec = m_dDecRateArcSecPerSec;
-            bTrackingOn = false;
+            bSiderialTrackingOn = false;
             break;
         case '3' :  //  Guide
             dRaRateArcSecPerSec = m_dRaRateArcSecPerSec;
             dDecRateArcSecPerSec = m_dDecRateArcSecPerSec;
-            bTrackingOn = false;
+            bSiderialTrackingOn = false;
             break;
         default:
             dRaRateArcSecPerSec = 15.0410681; // Convention to say tracking is off - see TSX documentation
             dDecRateArcSecPerSec = 0;
-            bTrackingOn = false;
+            bSiderialTrackingOn = false;
             break;
     }
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getTrackRates] bTrackingOn : " << (bTrackingOn?"Yes":"No") << std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getTrackRates] dRaRateArcSecPerSec : " << std::fixed << std::setprecision(8) << dRaRateArcSecPerSec << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getTrackRates] bSiderialTrackingOn  : " << (bSiderialTrackingOn?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getTrackRates] dRaRateArcSecPerSec  : " << std::fixed << std::setprecision(8) << dRaRateArcSecPerSec << std::endl;
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getTrackRates] dDecRateArcSecPerSec : " << std::fixed << std::setprecision(8) << dDecRateArcSecPerSec << std::endl;
     m_sLogFile.flush();
 #endif
@@ -1314,9 +1310,14 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
     convertDecDegToDDMMSS(dLatitute, sLat);
 
     m_pTsx->localDateTime(yy, mm, dd, h, min, sec, dst);
-    if(dst)
-        dTimeZone += 1.0;
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dst        : " << (dst != 0 ?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
 
+    if(dst) {
+        dTimeZone += 1.0;
+    }
     dTimeZoneNew = -dTimeZone;
     cSign = dTimeZoneNew>=0?'+':'-';
     dTimeZoneNew=std::fabs(dTimeZone);

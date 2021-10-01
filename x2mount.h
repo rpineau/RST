@@ -152,8 +152,8 @@ public:
 	virtual bool							needsRefactionAdjustments(void);
 
     //TrackingRatesInterface
-	virtual int setTrackingRates( const bool& bTrackingOn, const bool& bIgnoreRates, const double& dRaRateArcSecPerSec, const double& dDecRateArcSecPerSec);
-	virtual int trackingRates( bool& bTrackingOn, double& dRaRateArcSecPerSec, double& dDecRateArcSecPerSec);
+	virtual int setTrackingRates( const bool& bSiderialTrackingOn, const bool& bIgnoreRates, const double& dRaRateArcSecPerSec, const double& dDecRateArcSecPerSec);
+	virtual int trackingRates( bool& bSiderialTrackingOn, double& dRaRateArcSecPerSec, double& dDecRateArcSecPerSec);
     virtual int siderealTrackingOn();
     virtual int trackingOff();
 
