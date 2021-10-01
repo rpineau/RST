@@ -12,8 +12,6 @@
 #include <cmath>
 #include <algorithm>
 
-#include <stdlib.h>
-
 #include "../../licensedinterfaces/sberrorx.h"
 #include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
 #include "../../licensedinterfaces/serxinterface.h"

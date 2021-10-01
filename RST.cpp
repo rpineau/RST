@@ -1036,6 +1036,8 @@ int RST::Abort()
 #endif
 
     nErr = sendCommand(":Q#", sResp, 0);
+    m_bUnparking = false;
+    
     return nErr;
 }
 
