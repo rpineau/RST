@@ -489,17 +489,12 @@ bool X2Mount::isSynced(void)
 int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates, const double& dRaRateArcSecPerSec, const double& dDecRateArcSecPerSec)
 {
     int nErr = SB_OK;
-    double dTrackRaArcSecPerHr;
-    double dTrackDecArcSecPerHr;
     if(!m_bLinked)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
 
-    dTrackRaArcSecPerHr = dRaRateArcSecPerSec * 3600;
-    dTrackDecArcSecPerHr = dDecRateArcSecPerSec * 3600;
-
-    nErr = mRST.setTrackingRates(bTrackingOn, bIgnoreRates, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
+    nErr = mRST.setTrackingRates(bTrackingOn, bIgnoreRates, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
 
     return nErr;
 }
@@ -519,10 +514,8 @@ int X2Mount::trackingRates(bool& bTrackingOn, double& dRaRateArcSecPerSec, doubl
     if(nErr) {
         return ERR_CMDFAILED;
     }
-    dRaRateArcSecPerSec = dTrackRaArcSecPerHr / 3600;
-    dDecRateArcSecPerSec = dTrackDecArcSecPerHr / 3600;
 
-	return nErr;
+    return nErr;
 }
 
 int X2Mount::siderealTrackingOn()
@@ -625,10 +618,16 @@ int X2Mount::isCompletePark(bool& bComplete) const
 
     X2Mount* pMe = (X2Mount*)this;
     X2MutexLocker ml(pMe ->GetMutex());
-    nErr = pMe->mRST.getAtPark(bComplete);
-    if(nErr)
-        nErr = ERR_CMDFAILED;
 
+    nErr =  pMe->mRST.isSlewToComplete(bComplete);
+    if(nErr)
+        return nErr;
+
+    if(bComplete) {
+        nErr = pMe->mRST.getAtPark(bComplete);
+        if(nErr)
+            return nErr;
+    }
 	return nErr;
 }
 
@@ -640,7 +639,6 @@ int X2Mount::endPark(void)
 int X2Mount::startUnpark(void)
 {
     int nErr = SB_OK;
-
     if(!m_bLinked)
         return ERR_NOLINK;
 

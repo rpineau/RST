@@ -55,8 +55,8 @@ public:
     int syncTo(double dRa, double dDec);
     int isAligned(bool &bAligned);
     
-    int setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackRaArcSecPerHr, double dTrackDecArcSecPerHr);
-    int getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &dTrackDecArcSecPerHr);
+    int setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec);
+    int getTrackRates(bool &bTrackingOn, double &dRaRateArcSecPerSec, double &dDecRateArcSecPerSec);
 
     int startSlewTo(double dRa, double dDec);
     int isSlewToComplete(bool &bComplete);
@@ -110,6 +110,7 @@ private:
     bool    m_bSyncLocationOnConnect;
     bool    m_bHomeOnUnpark;
     bool    m_bUnparking;
+    int     m_nNbHomingTries;
 
     std::string     m_sTime;
     std::string     m_sDate;

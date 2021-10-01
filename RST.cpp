@@ -116,8 +116,6 @@ int RST::Disconnect(void)
 }
 
 
-
-
 #pragma mark - RST communication
 int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
 {
@@ -125,6 +123,7 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     unsigned long  ulBytesWrite;
 
     m_pSerx->purgeTxRx();
+    sResp.clear();
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] sending "<< sCmd<< std::endl;
@@ -167,7 +166,6 @@ int RST::readResponse(std::string &sResp, int nTimeout)
     int nBytesWaiting = 0 ;
     int nbTimeouts = 0;
 
-    sResp.clear();
     memset(pszBuf, 0, SERIAL_BUFFER_SIZE);
     pszBufPtr = pszBuf;
 
@@ -451,13 +449,17 @@ int RST::isAligned(bool &bAligned)
 }
 
 #pragma mark - tracking rates
-int RST::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackRaArcSecPerHr, double dTrackDecArcSecPerHr)
+int RST::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec)
 {
     int nErr = PLUGIN_OK;
     std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] Called." << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] bTrackingOn : " << (bTrackingOn?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] bIgnoreRates." << (bIgnoreRates?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] dTrackRaArcSecPerHr." << std::fixed << std::setprecision(8) << dRaRateArcSecPerSec << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] dTrackDecArcSecPerHr." << std::fixed << std::setprecision(8) << dDecRateArcSecPerSec << std::endl;
     m_sLogFile.flush();
 #endif
 
@@ -468,19 +470,43 @@ int RST::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackRaAr
 #endif
         nErr = sendCommand(":CtL#", sResp); // tracking off
     }
-    else if(bTrackingOn && bIgnoreRates) { // sidereal
+    // sidereal
+    else if(bTrackingOn && bIgnoreRates) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Sidereal" << std::endl;
         m_sLogFile.flush();
 #endif
         nErr = sendCommand(":CT0#", sResp);
     }
-    else { // lunar, solar, ..
+    // Lunar
+    else if (0.30 < dRaRateArcSecPerSec && dRaRateArcSecPerSec < 0.83 && -0.25 < dDecRateArcSecPerSec && dDecRateArcSecPerSec < 0.25) {
+        nErr = sendCommand(":CtM#", sResp, 0);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Lunar" << std::endl;
+        m_sLogFile.flush();
+#endif
     }
+    // solar
+    else if (0.037 < dRaRateArcSecPerSec && dRaRateArcSecPerSec < 0.043 && -0.017 < dDecRateArcSecPerSec && dDecRateArcSecPerSec < 0.017) {
+        nErr = sendCommand(":CtS#", sResp, 0);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Solar" << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+    // default to sidereal
+    else {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] default to sidereal" << std::endl;
+        m_sLogFile.flush();
+#endif
+        nErr = sendCommand(":CT0#", sResp);
+    }
+
     return nErr;
 }
 
-int RST::getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &dTrackDecArcSecPerHr)
+int RST::getTrackRates(bool &bTrackingOn, double &dRaRateArcSecPerSec, double &dDecRateArcSecPerSec)
 {
     int nErr = PLUGIN_OK;
     std::string sResp;
@@ -495,31 +521,32 @@ int RST::getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &d
         return nErr;
     switch(sResp.at(3)) {
         case '0' :  // Sidereal
-            dTrackRaArcSecPerHr = 0;
-            dTrackDecArcSecPerHr = 0;
+            dRaRateArcSecPerSec = 0;
+            dDecRateArcSecPerSec = 0;
             break;
         case '1' :  // Solar
-            dTrackRaArcSecPerHr = 0;
-            dTrackDecArcSecPerHr = 0;
+            dRaRateArcSecPerSec = 0.041;
+            dDecRateArcSecPerSec = 0;
             break;
         case '2' :  // Lunar
-            dTrackRaArcSecPerHr = 0;
-            dTrackDecArcSecPerHr = 0;
+            dRaRateArcSecPerSec = 0.356;
+            dDecRateArcSecPerSec = 0;
             break;
         case '3' :  //  Guide
-            dTrackRaArcSecPerHr = 0;
-            dTrackDecArcSecPerHr = 0;
+            dRaRateArcSecPerSec = 0;
+            dDecRateArcSecPerSec = 0;
             break;
         default:
-            dTrackRaArcSecPerHr = 0;
-            dTrackDecArcSecPerHr = 0;
+            dRaRateArcSecPerSec = 15.0410681; // tracking off
+            dDecRateArcSecPerSec = 0;
             break;
     }
 
     isTrackingOn(bTrackingOn);
-    if(!bTrackingOn)
-        dTrackRaArcSecPerHr = 15.0410681; // Convention to say tracking is off - see TSX documentation
-
+    if(!bTrackingOn) {
+        dRaRateArcSecPerSec = 15.0410681; // Convention to say tracking is off - see TSX documentation
+        dDecRateArcSecPerSec = 0;
+    }
     return nErr;
 }
 
@@ -528,7 +555,6 @@ int RST::getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &d
 int RST::getLimits(double &dHoursEast, double &dHoursWest)
 {
     int nErr = PLUGIN_OK;
-    double dEast, dWest;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getLimits] Called." << std::endl;
@@ -560,6 +586,13 @@ int RST::startSlewTo(double dRa, double dDec)
         return nErr;
 
     nErr = slewTargetRA_DecEpochNow();
+    if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [startSlewTo] error " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+
+    }
     return nErr;
 }
 
@@ -876,6 +909,7 @@ int RST::unPark()
     m_bUnparking = true;
 
     nErr = homeMount();
+    m_nNbHomingTries = 0;
     return nErr;
 }
 
@@ -921,8 +955,7 @@ int RST::isUnparkDone(bool &bComplete)
         return nErr;
     }
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bIsHomed   " << (bIsHomed?"Yes":"No") << std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bComplete " << (bComplete?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bIsHomed " << (bIsHomed?"Yes":"No") << std::endl;
     m_sLogFile.flush();
 #endif
 
@@ -984,7 +1017,7 @@ int RST::isHomingDone(bool &bIsHomed)
     nErr = sendCommand(":AH#", sResp);
     if(nErr) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] error " << nErr << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] AH error " << nErr << std::endl;
         m_sLogFile.flush();
 #endif
     }
@@ -997,6 +1030,29 @@ int RST::isHomingDone(bool &bIsHomed)
        m_sLogFile.flush();
 #endif
 
+    // check status in case we need to retry
+    if (bIsHomed) {
+        nErr = sendCommand(":GH#", sResp);
+        if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] GH error " << nErr << std::endl;
+            m_sLogFile.flush();
+#endif
+        }
+        if(sResp.size() >= 3 && sResp.at(3) != 'O') {
+            if(m_nNbHomingTries == 0) {
+                m_nNbHomingTries++;
+                homeMount();
+            } else {
+                nErr = ERR_CMDFAILED;
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+                m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] Homing failed twice " << std::endl;
+                m_sLogFile.flush();
+#endif
+            }
+            bIsHomed = false;
+        }
+    }
     return nErr;
 }
 
@@ -1036,6 +1092,8 @@ int RST::Abort()
 #endif
 
     nErr = sendCommand(":Q#", sResp, 0);
+    nErr |= sendCommand(":CtL#", sResp); // tracking off
+
     m_bUnparking = false;
     
     return nErr;
