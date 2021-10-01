@@ -317,7 +317,7 @@
       <widget class="QPushButton" name="pushButton_3">
        <property name="geometry">
         <rect>
-         <x>144</x>
+         <x>16</x>
          <y>32</y>
          <width>113</width>
          <height>24</height>
@@ -364,6 +364,19 @@
          <string>Parking 3 / +00º 00' 00.0&quot; / 090º 00' 00.0&quot;</string>
         </property>
        </item>
+      </widget>
+      <widget class="QLabel" name="voltage">
+       <property name="geometry">
+        <rect>
+         <x>184</x>
+         <y>32</y>
+         <width>208</width>
+         <height>24</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Input Voltage</string>
+       </property>
       </widget>
      </widget>
     </widget>

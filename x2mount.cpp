@@ -39,20 +39,7 @@ X2Mount::X2Mount(const char* pszDriverSelection,
         
 	}
 
-    // set mount alignement type and meridian avoidance mode.
-    /*
-    if(strstr(pszDriverSelection,"Fork")) {
-        mRST.setMountMode(MountTypeInterface::Symmetrical_Equatorial);
-    }
-    else if(strstr(pszDriverSelection,"Equatorial")) {
-         mRST.setMountMode(MountTypeInterface::Asymmetrical_Equatorial);
-     }
-     else {
-         mRST.setMountMode(MountTypeInterface::AltAz);
-     }
-*/
-    mRST.setSyncDateTimeOnConnect(m_bSyncOnConnect);
-    mRST.setSyncLocationConnect(m_bSyncOnConnect);
+    mRST.setSyncLocationDataConnect(m_bSyncOnConnect);
 }
 
 X2Mount::~X2Mount()
@@ -191,6 +178,8 @@ int X2Mount::execModalSettingsDialog(void)
     std::string sLongitude;
     std::string sLatitude;
     std::string sTimeZone;
+    double dVolts;
+
 	if (NULL == ui) return ERR_POINTER;
 	
 	if ((nErr = ui->loadUserInterface("RST.ui", deviceType(), m_nPrivateMulitInstanceIndex)))
@@ -220,6 +209,9 @@ int X2Mount::execModalSettingsDialog(void)
         dx->setText("latitude", sLatitude.c_str());
         dx->setText("timezone", sTimeZone.c_str());
         dx->setCurrentIndex("comboBox", m_nParkingPosition-1);
+
+        mRST.getInputVoltage(dVolts);
+        dx->setText("voltage", (std::string("Input volatage : ") + std::to_string(dVolts)).c_str());
     }
     else {
         dx->setText("time_date", "");
@@ -256,6 +248,7 @@ void X2Mount::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
     std::string sTime;
     std::string sDate;
     std::string sTmp;
+    double dVolts;
 
     if(!m_bLinked)
         return ;
@@ -267,6 +260,8 @@ void X2Mount::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
             sTmp =sDate + " - " + sTime;
             uiex->setText("time_date", sTmp.c_str());
         }
+        mRST.getInputVoltage(dVolts);
+        uiex->setText("voltage", (std::string("Input volatage : ") + std::to_string(dVolts)).c_str());
 	}
 
     if (!strcmp(pszEvent, "on_pushButton_clicked")) {
@@ -502,15 +497,13 @@ int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates,
 int X2Mount::trackingRates(bool& bTrackingOn, double& dRaRateArcSecPerSec, double& dDecRateArcSecPerSec)
 {
     int nErr = SB_OK;
-    double dTrackRaArcSecPerHr;
-    double dTrackDecArcSecPerHr;
 
     if(!m_bLinked)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
-    nErr = mRST.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
+    
+    nErr = mRST.getTrackRates(bTrackingOn, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
     if(nErr) {
         return ERR_CMDFAILED;
     }

@@ -84,16 +84,17 @@ public:
 
     int setSiteData(double dLongitude, double dLatitute, double dTimeZone);
     int getSiteData(std::string &sLongitude, std::string &sLatitude, std::string &sTimeZone);
-    void setSyncLocationConnect(bool bSync);
+    void setSyncLocationDataConnect(bool bSync);
 
     int getLocalTime(std::string &sTime);
     int getLocalDate(std::string &sDate);
     int syncTime();
     int syncDate();
-    void setSyncDateTimeOnConnect(bool bSync);
 
     int homeMount();
     int isHomingDone(bool &bIsHomed);
+
+    int getInputVoltage(double &dVolts);
 
 #ifdef PLUGIN_DEBUG
     void log(std::string sLogEntry);
@@ -106,11 +107,13 @@ private:
 	bool    m_bIsConnected;                               // Connected to the mount?
     std::string m_sFirmwareVersion;
 
-    bool    m_bSyncTimeAndDateOnConnect;
-    bool    m_bSyncLocationOnConnect;
+    bool    m_bSyncLocationDataConnect;
     bool    m_bHomeOnUnpark;
     bool    m_bUnparking;
     int     m_nNbHomingTries;
+
+    double m_dRaRateArcSecPerSec;
+    double m_dDecRateArcSecPerSec;
 
     std::string     m_sTime;
     std::string     m_sDate;

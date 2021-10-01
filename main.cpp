@@ -7,7 +7,7 @@
 
 extern "C" PlugInExport int sbPlugInName2(BasicStringInterface& str)
 {
-	str = "Mount Plug In Version 1.0";
+	str = "RST Mount PlugIn";
 
 	return 0;
 }
