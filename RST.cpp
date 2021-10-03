@@ -188,7 +188,7 @@ int RST::readResponse(std::string &sResp, int nTimeout)
             break; // buffer is full.. there is a problem !!
         }
         if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile error : " << nErr << std::endl;
             m_sLogFile.flush();
 #endif
@@ -196,7 +196,7 @@ int RST::readResponse(std::string &sResp, int nTimeout)
         }
 
         if (ulBytesRead != nBytesWaiting) { // timeout
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] rreadFile Timeout Error." << std::endl;
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile nBytesWaiting : " << nBytesWaiting << std::endl;
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile ulBytesRead   : " << ulBytesRead << std::endl;
@@ -251,7 +251,7 @@ int RST::getRaAndDec(double &dRa, double &dDec)
     // get RA
     nErr = sendCommand(":GR#", sResp);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GR# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
         m_sLogFile.flush();
 #endif
@@ -265,7 +265,7 @@ int RST::getRaAndDec(double &dRa, double &dDec)
 
     nErr = convertHHMMSStToRa(sResp.substr(3), dRa);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GD# convertHHMMSStToRa error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
         m_sLogFile.flush();
 #endif
@@ -279,7 +279,7 @@ int RST::getRaAndDec(double &dRa, double &dDec)
     // get DEC
     nErr = sendCommand(":GD#", sResp);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GD# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
         m_sLogFile.flush();
 #endif
@@ -287,7 +287,7 @@ int RST::getRaAndDec(double &dRa, double &dDec)
     }
     nErr = convertDDMMSSToDecDeg(sResp.substr(3), dDec);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GD# convertDDMMSSToDecDeg error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
         m_sLogFile.flush();
 #endif
@@ -605,7 +605,7 @@ int RST::startSlewTo(double dRa, double dDec)
 
     nErr = slewTargetRA_DecEpochNow();
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [startSlewTo] error " << nErr << std::endl;
         m_sLogFile.flush();
 #endif
@@ -632,7 +632,7 @@ int RST::slewTargetRA_DecEpochNow()
 
     if(sResp.size()>=4) {
         if(sResp.at(3) == 'L') {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [slewTargetRA_DecEpochNow] Limit error ? => " << sResp << std::endl;
             m_sLogFile.flush();
 #endif
@@ -790,7 +790,7 @@ int RST::getSpeed(const int nSpeedId, int &nSpeed)
             nSpeed = std::stoi(vFieldsData[1]);
         }
         catch(const std::exception& e) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getSpeed] conversion exception : " << e.what() << std::endl;
             m_sLogFile.flush();
 #endif
@@ -836,7 +836,7 @@ int RST::getGuideSpeed(double &dSpeed)
             dSpeed = std::stod(vFieldsData[1]);
         }
         catch(const std::exception& e) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setGuideSpeed] conversion exception : " << e.what() << std::endl;
             m_sLogFile.flush();
 #endif
@@ -859,7 +859,7 @@ int RST::isSlewToComplete(bool &bComplete)
 
     nErr = sendCommand(":CL#", sResp);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isSlewToComplete] error " << nErr << std::endl;
         m_sLogFile.flush();
 #endif
@@ -967,7 +967,7 @@ int RST::isUnparkDone(bool &bComplete)
 #endif
     nErr = isHomingDone(bIsHomed);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] error " << nErr << std::endl;
         m_sLogFile.flush();
 #endif
@@ -1013,7 +1013,7 @@ int RST::homeMount()
 
     nErr = sendCommand(":Ch#", sResp, 0);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [homeMount] error " << nErr << std::endl;
         m_sLogFile.flush();
 #endif
@@ -1036,7 +1036,7 @@ int RST::isHomingDone(bool &bIsHomed)
 
     nErr = sendCommand(":AH#", sResp);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] AH error " << nErr << std::endl;
         m_sLogFile.flush();
 #endif
@@ -1054,7 +1054,7 @@ int RST::isHomingDone(bool &bIsHomed)
     if (bIsHomed) {
         nErr = sendCommand(":GH#", sResp);
         if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] GH error " << nErr << std::endl;
             m_sLogFile.flush();
 #endif
@@ -1089,7 +1089,7 @@ int RST::isTrackingOn(bool &bTrakOn)
     bTrakOn = false;
     nErr = sendCommand(":AT#", sResp);
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isTrackingOn] error " << nErr << std::endl;
         m_sLogFile.flush();
 #endif
@@ -1345,6 +1345,7 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
 
     nErr |= syncDate();
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+
     nErr |= syncTime();
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     return nErr;
@@ -1421,7 +1422,7 @@ int RST::getInputVoltage(double &dVolts)
         dVolts = std::stod(sResp.substr(3));
     }
     catch(const std::exception& e) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getInputVoltage] conversion exception : " << e.what() << std::endl;
         m_sLogFile.flush();
 #endif
@@ -1536,7 +1537,7 @@ int RST::convertDDMMSSToDecDeg(const std::string sStrDeg, double &dDecDeg)
 
     nErr = parseFields(newDec, vFieldsData, ':');
     if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [convertDDMMSSToDecDeg] parseFields error " << nErr << std::endl;
         m_sLogFile.flush();
 #endif
@@ -1557,7 +1558,7 @@ int RST::convertDDMMSSToDecDeg(const std::string sStrDeg, double &dDecDeg)
 #endif
         }
         catch(const std::exception& e) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [convertDDMMSSToDecDeg] conversion exception : " << e.what() << std::endl;
             m_sLogFile.flush();
 #endif
@@ -1621,7 +1622,7 @@ int RST::convertHHMMSStToRa(const std::string szStrRa, double &dRa)
 #endif
         }
         catch(const std::exception& e) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [convertHHMMSStToRa] conversion exception : " << e.what() << std::endl;
             m_sLogFile.flush();
 #endif
