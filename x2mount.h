@@ -1,3 +1,5 @@
+#ifndef __X2_MOUNT_RST__
+#define __X2_MOUNT_RST__
 #pragma once
 #include <string.h>
 #include <math.h>
@@ -224,3 +226,5 @@ private:
     void portNameOnToCharPtr(char* pszPort, const unsigned int& nMaxSize) const;
 	
 };
+
+#endif // __X2_MOUNT_RST__

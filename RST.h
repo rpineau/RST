@@ -1,3 +1,6 @@
+#ifndef __RST__
+#define __RST__
+
 #pragma once
 // C++ includes
 #include <string>
@@ -21,7 +24,7 @@
 
 #include "StopWatch.h"
 
-#define PLUGIN_VERSION 1.0
+#define PLUGIN_VERSION 1.1
 
 // #define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
@@ -97,6 +100,8 @@ public:
 
     int getInputVoltage(double &dVolts);
 
+    int     IsBeyondThePole(bool &bBeyondPole);
+
 #ifdef PLUGIN_DEBUG
     void log(std::string sLogEntry);
 #endif
@@ -152,6 +157,8 @@ private:
     void    convertRaToHHMMSSt(double dRa, std::string &sResult);
     int     convertHHMMSStToRa(const std::string szStrRa, double &dRa);
 
+    int     getDecAxisAlignmentOffset(double &dOffset);
+
     int     parseFields(const std::string sIn, std::vector<std::string> &svFields, char cSeparator);
 
     std::vector<std::string>    m_svSlewRateNames = {"Guide", "Centering", "Find", "Max"};
@@ -166,4 +173,6 @@ private:
 	
 };
 
+
+#endif // __RST__
 
