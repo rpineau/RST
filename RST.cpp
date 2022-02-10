@@ -1636,6 +1636,112 @@ int RST::convertHHMMSStToRa(const std::string szStrRa, double &dRa)
 }
 
 
+
+int RST::getDecAxisAlignmentOffset(double &dOffset)
+{
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+    dOffset = 0;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDecAxisAlignmentOffset] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    // get Dec Axis Alignment Offset
+    nErr = sendCommand(":CG3#", sResp);
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDecAxisAlignmentOffset] :CG3# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDecAxisAlignmentOffset]  sResp : " << sResp << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    try {
+        dOffset = std::stod(sResp.substr(3));
+    }
+    catch(const std::exception& e) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDecAxisAlignmentOffset] conversion exception : " << e.what() << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+
+    return nErr;
+}
+
+int RST::IsBeyondThePole(bool &bBeyondPole)
+{
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+    std::vector<std::string> vFieldsData;
+    double dDecAxis = 0;
+    double dDecAxisForSideOfPier = 0;
+    double dOffset = 0;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    bBeyondPole = false;
+
+    nErr = getDecAxisAlignmentOffset(dOffset);
+    if(nErr) {
+        return nErr;
+
+    }
+
+    // get Side of pier
+    nErr = sendCommand(":CY#", sResp);
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole] :CY# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole]  sResp : " << sResp << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    parseFields(sResp.substr(3), vFieldsData, '/');
+    if(vFieldsData.size() >1) {
+        try {
+            dDecAxis = std::stoi(vFieldsData[0]);
+            dDecAxisForSideOfPier = dDecAxis - dOffset;
+        }
+        catch(const std::exception& e) {
+#if defined PLUGIN_DEBUG
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole] conversion exception : " << e.what() << std::endl;
+            m_sLogFile.flush();
+#endif
+            return ERR_CMDFAILED;
+        }
+    }
+
+    // “beyond the pole” =  “telescope west of the pier”,
+    if (dDecAxisForSideOfPier > 90)
+        bBeyondPole = true;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole]  bBeyondPole : " << (bBeyondPole?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    return nErr;
+}
+
+
 int RST::parseFields(const std::string sIn, std::vector<std::string> &svFields, char cSeparator)
 {
     int nErr = PLUGIN_OK;

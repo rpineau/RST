@@ -251,7 +251,7 @@ void X2Mount::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
     double dVolts;
 
     if(!m_bLinked)
-        return ;
+        return ; 
 
 	if (!strcmp(pszEvent, "on_timer")) {
         nErr = mRST.getLocalTime(sTime);
@@ -687,10 +687,11 @@ bool X2Mount::knowsBeyondThePole()
 }
 
 int X2Mount::beyondThePole(bool& bYes) {
+    int nErr = SB_OK;
     X2MutexLocker ml(GetMutex());
     // “beyond the pole” =  “telescope west of the pier”,
-	// bYes = mRST.GetIsBeyondThePole();
-	return SB_OK;
+    nErr = mRST.IsBeyondThePole(bYes);
+	return nErr;
 }
 
 
