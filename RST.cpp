@@ -117,7 +117,7 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     sResp.clear();
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] sending "<< sCmd<< std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] sending "<< sCmd<< std::endl;
     m_sLogFile.flush();
 #endif
 
@@ -133,13 +133,13 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     nErr = readResponse(sResp, nTimeout);
     if(nErr) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] ***** ERROR READING RESPONSE **** error = " << nErr << " , response : " << sResp << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] ***** ERROR READING RESPONSE **** error = " << nErr << " , response : " << sResp << std::endl;
         m_sLogFile.flush();
 #endif
         return nErr;
     }
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] response " << sResp <<  std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] response " << sResp <<  std::endl;
     m_sLogFile.flush();
 #endif
 
