@@ -68,8 +68,8 @@ int RST::Connect(char *pszPort)
         return ERR_COMMNOLINK;
 
     // usb mode on
-    sendCommand(":AU#", sResp, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+    // sendCommand(":AU#", sResp, 0);
+    // std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     // request protocol Rainbow
     sendCommand(":AR#", sResp, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
@@ -117,7 +117,7 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     sResp.clear();
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] sending "<< sCmd<< std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] sending "<< sCmd<< std::endl;
     m_sLogFile.flush();
 #endif
 
@@ -133,13 +133,13 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     nErr = readResponse(sResp, nTimeout);
     if(nErr) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] ***** ERROR READING RESPONSE **** error = " << nErr << " , response : " << sResp << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] ***** ERROR READING RESPONSE **** error = " << nErr << " , response : " << sResp << std::endl;
         m_sLogFile.flush();
 #endif
         return nErr;
     }
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [domeCommand] response " << sResp <<  std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] response " << sResp <<  std::endl;
     m_sLogFile.flush();
 #endif
 
