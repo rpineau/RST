@@ -68,8 +68,8 @@ int RST::Connect(char *pszPort)
         return ERR_COMMNOLINK;
 
     // usb mode on
-    sendCommand(":AU#", sResp, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+    // sendCommand(":AU#", sResp, 0);
+    // std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     // request protocol Rainbow
     sendCommand(":AR#", sResp, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
