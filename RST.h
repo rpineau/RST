@@ -24,7 +24,7 @@
 
 #include "StopWatch.h"
 
-#define PLUGIN_VERSION 1.1
+#define PLUGIN_VERSION 1.2
 
 // #define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
@@ -117,6 +117,7 @@ private:
     bool    m_bHomeOnUnpark;
     bool    m_bUnparking;
     int     m_nNbHomingTries;
+    bool    m_bSyncDone;
 
     double m_dRaRateArcSecPerSec;
     double m_dDecRateArcSecPerSec;

@@ -16,6 +16,8 @@ RST::RST()
     m_bSyncLocationDataConnect = false;
     m_bHomeOnUnpark = false;
 
+    m_bSyncDone = false;
+
 #ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
@@ -79,7 +81,7 @@ int RST::Connect(char *pszPort)
                     m_pTsx->latitude(),
                     m_pTsx->timeZone());
     }
-
+    m_bSyncDone = false;
     return SB_OK;
 }
 
@@ -102,6 +104,7 @@ int RST::Disconnect(void)
         }
     }
 	m_bIsConnected = false;
+    m_bSyncDone = false;
 
 	return SB_OK;
 }
@@ -419,8 +422,17 @@ int RST::syncTo(double dRa, double dDec)
     } else {
         cSign = '+';
     }
-    ssTmp << ":Ck" << std::setfill('0') << std::setw(7) << std::fixed << std::setprecision(3) << dRa*15.0 << cSign << std::setfill('0') << std::setw(6)<< std::fixed << std::setprecision(3) << dDec << "#";
+
+    if(!m_bSyncDone)
+        ssTmp << ":Ck" << std::setfill('0') << std::setw(7) << std::fixed << std::setprecision(3) << dRa*15.0 << cSign << std::setfill('0') << std::setw(6)<< std::fixed << std::setprecision(3) << dDec << "#";
+    else
+        ssTmp << ":CN" << std::setfill('0') << std::setw(7) << std::fixed << std::setprecision(3) << dRa*15.0 << cSign << std::setfill('0') << std::setw(6)<< std::fixed << std::setprecision(3) << dDec << "#";
+
     nErr = sendCommand(ssTmp.str(), sResp, 0);
+
+    if(!nErr && !m_bSyncDone)
+        m_bSyncDone = true;
+
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
 
     return nErr;
