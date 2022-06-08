@@ -636,11 +636,11 @@ int RST::slewTargetRA_DecEpochNow()
     m_sLogFile.flush();
 #endif
 
-    nErr = sendCommand(":MS#", sResp, 100);
-    if(sResp.size() && nErr)
-        return nErr;
-
-    nErr = PLUGIN_OK;
+    nErr = sendCommand(":MS#", sResp, 200);
+    if(nErr == COMMAND_TIMEOUT) // normal if the command succeed
+        nErr = PLUGIN_OK;
+    else if(nErr)
+        return ERR_CMDFAILED;
 
     if(sResp.size()>=4) {
         if(sResp.at(3) == 'L') {

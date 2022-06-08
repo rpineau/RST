@@ -24,7 +24,7 @@
 
 #include "StopWatch.h"
 
-#define PLUGIN_VERSION 1.2
+#define PLUGIN_VERSION 1.3
 
 // #define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
