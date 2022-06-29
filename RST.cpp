@@ -181,6 +181,7 @@ int RST::readResponse(std::string &sResp, int nTimeout)
                 break;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(MAX_READ_WAIT_TIMEOUT));
+            std::this_thread::yield();
             continue;
         }
         nbTimeouts = 0;
@@ -211,12 +212,16 @@ int RST::readResponse(std::string &sResp, int nTimeout)
         pszBufPtr+=ulBytesRead;
     }  while (ulTotalBytesRead < SERIAL_BUFFER_SIZE  && *(pszBufPtr-1) != '#');
 
-    if(!ulTotalBytesRead)
+    if(!ulTotalBytesRead) {
         nErr = COMMAND_TIMEOUT; // we didn't get an answer.. so timeout
+    }
     else if(*(pszBufPtr-1) == '#')
         *(pszBufPtr-1) = 0; //remove the #
 
-    sResp.assign(pszBuf);
+    if(ulTotalBytesRead)
+        sResp.assign(pszBuf);
+    else
+        sResp.clear();
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] sResp : " << sResp << std::endl;
