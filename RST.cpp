@@ -115,6 +115,7 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
 {
     int nErr = PLUGIN_OK;
     unsigned long  ulBytesWrite;
+    std::vector<std::string> vFieldsData;
 
     m_pSerx->purgeTxRx();
     sResp.clear();
@@ -145,6 +146,13 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] response " << sResp <<  std::endl;
     m_sLogFile.flush();
 #endif
+    // do we have a :MM0# in the response as this come async after a slew and get mixed with normal response.
+    if (sResp.find("#")!= -1) { // if there is a # in the response then we have 2 responses and need to extract the last one
+        parseFields(sResp, vFieldsData, '#');
+        if(vFieldsData.size() >1) {
+            sResp.assign(vFieldsData[1]);
+        }
+    }
 
     return nErr;
 }
