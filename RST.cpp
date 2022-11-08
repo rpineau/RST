@@ -150,10 +150,14 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     if (sResp.find("#")!= -1) { // if there is a # in the response then we have 2 responses and need to extract the last one
         parseFields(sResp, vFieldsData, '#');
         if(vFieldsData.size() >1) {
-            sResp.assign(vFieldsData[1]);
+            if(vFieldsData[0].find("MM0") != -1 ) {
+                sResp.assign(vFieldsData[1]);
+            }
+            else if(vFieldsData[1].find("MM0") != -1 ) {
+                sResp.assign(vFieldsData[0]);
+            }
         }
     }
-
     return nErr;
 }
 
