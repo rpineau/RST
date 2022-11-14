@@ -121,7 +121,7 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     sResp.clear();
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] sending "<< sCmd<< std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] sending '" << sCmd << "'" << std::endl;
     m_sLogFile.flush();
 #endif
 
@@ -134,29 +134,34 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     if(nTimeout == 0) // no response expected
         return nErr;
 
-    nErr = readResponse(sResp, nTimeout);
-    if(nErr) {
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] ***** ERROR READING RESPONSE **** error = " << nErr << " , response : " << sResp << std::endl;
+    while(true) {
+        nErr = readResponse(sResp, nTimeout);
+        if(nErr) {
+    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] ***** ERROR READING RESPONSE **** error = " << nErr << " , response : '" << sResp << "'" << std::endl;
+            m_sLogFile.flush();
+    #endif
+            return nErr;
+        }
+    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] response : '" << sResp << "'" <<  std::endl;
         m_sLogFile.flush();
-#endif
-        return nErr;
-    }
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] response " << sResp <<  std::endl;
-    m_sLogFile.flush();
-#endif
-    // do we have a :MM0# in the response as this come async after a slew and get mixed with normal response.
-    if (sResp.find("#")!= -1) { // if there is a # in the response then we have 2 responses and need to extract the last one
-        parseFields(sResp, vFieldsData, '#');
-        if(vFieldsData.size() >1) {
-            if(vFieldsData[0].find("MM0") != -1 ) {
-                sResp.assign(vFieldsData[1]);
-            }
-            else if(vFieldsData[1].find("MM0") != -1 ) {
-                sResp.assign(vFieldsData[0]);
+    #endif
+        // do we have a :MM0# in the response as this come async after a slew and get mixed with normal response.
+        if (sResp.find("#")!= -1) { // if there is a # in the response then we have 2 responses and need to extract the right one
+            parseFields(sResp, vFieldsData, '#');
+            if(vFieldsData.size() >1) {
+                if(vFieldsData[0].find("MM0") != -1 ) {
+                    sResp.assign(vFieldsData[1]);
+                }
+                else if(vFieldsData[1].find("MM0") != -1 ) {
+                    sResp.assign(vFieldsData[0]);
+                }
             }
         }
+        if(sResp.find("MM0") == -1 )
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     return nErr;
 }
@@ -236,7 +241,7 @@ int RST::readResponse(std::string &sResp, int nTimeout)
         sResp.clear();
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] sResp : " << sResp << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] sResp : '" << sResp << "'" << std::endl;
     m_sLogFile.flush();
 #endif
 
