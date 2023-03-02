@@ -157,6 +157,9 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
                 else if(vFieldsData[1].find("MM0") != -1 ) {
                     sResp.assign(vFieldsData[0]);
                 }
+                else { // some more weirdness, only take the last one.
+                    sResp.assign(vFieldsData[1]);
+                }
             }
         }
         if(sResp.find("MM0") == -1 )
