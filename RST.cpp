@@ -1175,7 +1175,6 @@ int RST::Abort()
 #endif
 
     nErr = sendCommand(":Q#", sResp, 0);
-    nErr |= sendCommand(":CtL#", sResp); // tracking off
 
     m_bUnparking = false;
     
