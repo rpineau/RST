@@ -1150,16 +1150,23 @@ int RST::isTrackingOn(bool &bTrakOn)
     m_sLogFile.flush();
 #endif
     bTrakOn = false;
-    nErr = sendCommand(":AT#", sResp);
+
+    nErr = sendCommand(":AT#", sResp, 2000);
     if(nErr) {
+        bTrakOn = true; // let's not break this because of an error, we're kind of ignoring the error here
 #if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isTrackingOn] error " << nErr << ", response : " << sResp << std::endl;
         m_sLogFile.flush();
 #endif
+        return PLUGIN_OK;
     }
 
-    if(sResp.size() >= 3 && sResp.at(3) == '1')
+    if(sResp.size()==0) // there was a timeout probably
         bTrakOn = true;
+    else if(sResp.size() >= 3 && sResp.at(3) == '1')
+        bTrakOn = true;
+    else if(sResp.size() >= 3 && sResp.at(3) == '0')
+        bTrakOn = false;
 
     return nErr;
 }
