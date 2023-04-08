@@ -1017,7 +1017,7 @@ int RST::isUnparkDone(bool &bComplete)
         m_sLogFile.flush();
 #endif
         nErr = getAtPark(bAtPArk);
-        if(bAtPArk)
+        if(!bAtPArk)
             bComplete = true;
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bAtPArk   " << (bAtPArk?"Yes":"No") << std::endl;
@@ -1028,7 +1028,7 @@ int RST::isUnparkDone(bool &bComplete)
     }
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] Chcking if homing is done" << nErr << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] Checking if homing is done" << nErr << std::endl;
     m_sLogFile.flush();
 #endif
     nErr = isHomingDone(bIsHomed);
