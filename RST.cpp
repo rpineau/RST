@@ -18,6 +18,8 @@ RST::RST()
 
     m_bSyncDone = false;
 
+    m_commandDelayTimer.Reset();
+    
 #ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
@@ -117,6 +119,7 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     unsigned long  ulBytesWrite;
     std::vector<std::string> vFieldsData;
 
+    interCommandDelay();
     m_pSerx->purgeTxRx();
     sResp.clear();
 
@@ -249,6 +252,17 @@ int RST::readResponse(std::string &sResp, int nTimeout)
 #endif
 
     return nErr;
+}
+
+
+void RST::interCommandDelay(float f_delay)
+{
+    while(m_commandDelayTimer.GetElapsedSeconds() < f_delay) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(INTER_COMMAND_DELAY_SECONDS*1000/2)));
+        std::this_thread::yield();
+        continue;
+    }
+    m_commandDelayTimer.Reset();
 }
 
 int RST::getFirmwareVersion(std::string &sFirmware)
@@ -1003,6 +1017,7 @@ int RST::isUnparkDone(bool &bComplete)
     int nErr = PLUGIN_OK;
     bool bIsHomed = false;
     bool bAtPArk;
+    double dRa, dDec;
     std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1028,7 +1043,7 @@ int RST::isUnparkDone(bool &bComplete)
     }
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] Checking if homing is done" << nErr << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] Checking if homing is done" << std::endl;
     m_sLogFile.flush();
 #endif
     nErr = isHomingDone(bIsHomed);
@@ -1063,6 +1078,9 @@ int RST::isUnparkDone(bool &bComplete)
     std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
     m_dRaRateArcSecPerSec = 0.0;
     m_dDecRateArcSecPerSec = 0.0;
+
+    getRaAndDec(dRa, dDec);
+    startSlewTo(dRa,dDec); // test to see if this fix some issue on RST135E
     return nErr;
 }
 

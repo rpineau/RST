@@ -24,7 +24,7 @@
 
 #include "StopWatch.h"
 
-#define PLUGIN_VERSION 1.6
+#define PLUGIN_VERSION 1.7
 
 #define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
@@ -37,7 +37,7 @@ enum RSTErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_CMD_
 #define ERR_PARSE   1
 
 #define PLUGIN_NB_SLEW_SPEEDS 4
-
+#define INTER_COMMAND_DELAY_SECONDS     0.1
 
 // Define Class for Astrometric Instruments RST controller.
 class RST
@@ -162,9 +162,12 @@ private:
 
     int     parseFields(const std::string sIn, std::vector<std::string> &svFields, char cSeparator);
 
+    void    interCommandDelay(float f_delay = INTER_COMMAND_DELAY_SECONDS);
+
     std::vector<std::string>    m_svSlewRateNames = {"Guide", "Centering", "Find", "Max"};
 
-    
+    CStopWatch  m_commandDelayTimer;
+
 #ifdef PLUGIN_DEBUG
     // timestamp for logs
     const std::string getTimeStamp();
