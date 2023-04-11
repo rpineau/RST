@@ -17,6 +17,7 @@ RST::RST()
     m_bHomeOnUnpark = false;
 
     m_bSyncDone = false;
+    m_bIsHomed = false;
 
     m_commandDelayTimer.Reset();
     
@@ -983,15 +984,12 @@ int RST::gotoPark(double dAlt, double dAz)
 int RST::getAtPark(bool &bParked)
 {
     int nErr = PLUGIN_OK;
-    bool bTracking;
-
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Called." << std::endl;
     m_sLogFile.flush();
 #endif
-    isTrackingOn(bTracking);
-
-    bParked = bTracking?false:true;
+    isHomingDone(m_bIsHomed);
+    bParked = m_bIsHomed?false:true;
 
     return nErr;
 }
@@ -1015,9 +1013,8 @@ int RST::unPark()
 int RST::isUnparkDone(bool &bComplete)
 {
     int nErr = PLUGIN_OK;
-    bool bIsHomed = false;
     bool bAtPArk;
-    double dRa, dDec;
+    // double dRa, dDec;
     std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1046,7 +1043,7 @@ int RST::isUnparkDone(bool &bComplete)
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] Checking if homing is done" << std::endl;
     m_sLogFile.flush();
 #endif
-    nErr = isHomingDone(bIsHomed);
+    nErr = isHomingDone(m_bIsHomed);
     if(nErr) {
 #if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] error " << nErr << std::endl;
@@ -1055,11 +1052,11 @@ int RST::isUnparkDone(bool &bComplete)
         return nErr;
     }
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bIsHomed " << (bIsHomed?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] m_bIsHomed " << (m_bIsHomed?"Yes":"No") << std::endl;
     m_sLogFile.flush();
 #endif
 
-    if(!bIsHomed)
+    if(!m_bIsHomed)
         return nErr;
 
     // unparking and homing is done, enable tracking a sidereal rate
@@ -1067,7 +1064,7 @@ int RST::isUnparkDone(bool &bComplete)
     bComplete = true;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bIsHomed   " << (bIsHomed?"Yes":"No") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] m_bIsHomed   " << (m_bIsHomed?"Yes":"No") << std::endl;
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bComplete " << (bComplete?"Yes":"No") << std::endl;
     m_sLogFile.flush();
 #endif
@@ -1079,8 +1076,8 @@ int RST::isUnparkDone(bool &bComplete)
     m_dRaRateArcSecPerSec = 0.0;
     m_dDecRateArcSecPerSec = 0.0;
 
-    getRaAndDec(dRa, dDec);
-    startSlewTo(dRa,dDec); // test to see if this fix some issue on RST135E
+    //getRaAndDec(dRa, dDec);
+    //startSlewTo(dRa,dDec); // test to see if this fix some issue on RST135E
     return nErr;
 }
 

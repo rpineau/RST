@@ -118,6 +118,7 @@ private:
     bool    m_bUnparking;
     int     m_nNbHomingTries;
     bool    m_bSyncDone;
+    bool    m_bIsHomed;
 
     double m_dRaRateArcSecPerSec;
     double m_dDecRateArcSecPerSec;

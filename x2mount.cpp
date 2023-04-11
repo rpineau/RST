@@ -547,17 +547,15 @@ bool X2Mount::needsRefactionAdjustments(void)
 bool X2Mount::isParked(void)
 {
     int nErr;
-    bool bIsPArked;
 
     if(!m_bLinked)
         return false;
 
     X2MutexLocker ml(GetMutex());
-    nErr = mRST.getAtPark(bIsPArked);
+    nErr = mRST.getAtPark(m_bParked);
     if(nErr) {
         return false;
     }
-    m_bParked = bIsPArked;
     return m_bParked;
 }
 
