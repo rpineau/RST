@@ -338,7 +338,11 @@ bool X2Mount::isEstablishLinkAbortable(void) const
 
 void	X2Mount::driverInfoDetailedInfo(BasicStringInterface& str) const
 {
+#ifdef PLUGIN_DEBUG
+    str = "RST X2 plugin by Rodolphe Pineau [DEBUG]";
+#else
 	str = "RST X2 plugin by Rodolphe Pineau";
+#endif
 }
 
 double	X2Mount::driverInfoVersion(void) const
@@ -361,7 +365,7 @@ void X2Mount::deviceInfoNameLong(BasicStringInterface& str) const
 }
 void X2Mount::deviceInfoDetailedDescription(BasicStringInterface& str) const
 {
-	str = "Astrometric Instruments Telescope Control System";
+	str = "Rainbow Astro RST mount";
 	
 }
 void X2Mount::deviceInfoFirmwareVersion(BasicStringInterface& str)
@@ -613,13 +617,14 @@ int X2Mount::isCompletePark(bool& bComplete) const
     nErr =  pMe->mRST.isSlewToComplete(bComplete);
     if(nErr)
         return nErr;
-
+/*
     if(bComplete) {
         nErr = pMe->mRST.getAtPark(bComplete);
         if(nErr)
             return nErr;
     }
-	return nErr;
+*/
+    return nErr;
 }
 
 int X2Mount::endPark(void)
