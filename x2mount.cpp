@@ -617,13 +617,12 @@ int X2Mount::isCompletePark(bool& bComplete) const
     nErr =  pMe->mRST.isSlewToComplete(bComplete);
     if(nErr)
         return nErr;
-/*
+
     if(bComplete) {
-        nErr = pMe->mRST.getAtPark(bComplete);
-        if(nErr)
-            return nErr;
+        // stop tracking
+        nErr = pMe->setTrackingRates( false, true, 0.0, 0.0);
     }
-*/
+
     return nErr;
 }
 

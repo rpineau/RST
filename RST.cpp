@@ -1076,8 +1076,6 @@ int RST::isUnparkDone(bool &bComplete)
     m_dRaRateArcSecPerSec = 0.0;
     m_dDecRateArcSecPerSec = 0.0;
 
-    //getRaAndDec(dRa, dDec);
-    //startSlewTo(dRa,dDec); // test to see if this fix some issue on RST135E
     return nErr;
 }
 
