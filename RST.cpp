@@ -12,12 +12,15 @@ RST::RST()
     m_dRaRateArcSecPerSec = 0.0;
     m_dDecRateArcSecPerSec = 0.0;
 
-    
+    m_dParkAz = 270.00;
+    m_dPArkAlt = 0.00;
+
     m_bSyncLocationDataConnect = false;
     m_bHomeOnUnpark = false;
 
     m_bSyncDone = false;
     m_bIsHomed = false;
+    m_bIsParked = true;
 
     m_commandDelayTimer.Reset();
     
@@ -345,6 +348,72 @@ int RST::getRaAndDec(double &dRa, double &dDec)
     return nErr;
 }
 
+int RST::getAltAndAz(double &dAlt, double &dAz)
+{
+    int nErr = PLUGIN_OK;
+    std::string sResp;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] Called." << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    // get Az
+    nErr = sendCommand(":GZ#", sResp);
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GZ# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz]  sResp : " << sResp << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    nErr = convertDDMMSSToDecDeg(sResp.substr(3), dAz);
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GZ# convertDDMMSSToDecDeg error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz]  dAz : " << std::fixed << std::setprecision(12) << dAz << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    // get Alt
+    nErr = sendCommand(":GA#", sResp);
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GA# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+    nErr = convertDDMMSSToDecDeg(sResp.substr(3), dAlt);
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GA# convertDDMMSSToDecDeg error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
+        m_sLogFile.flush();
+#endif
+        return nErr;
+    }
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] dAlt : " << std::fixed << std::setprecision(12) << dAlt << std::endl;
+    m_sLogFile.flush();
+#endif
+
+    return nErr;
+
+}
+
+
 int RST::setTarget(double dRa, double dDec)
 {
     int nErr;
@@ -532,7 +601,7 @@ int RST::setTrackingRates(bool bSiderialTrackingOn, bool bIgnoreRates, double dR
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Sidereal" << std::endl;
         m_sLogFile.flush();
 #endif
-        nErr = sendCommand(":CT0#", sResp);
+        nErr = sendCommand(":CtR#", sResp);
         m_dRaRateArcSecPerSec = 0.0;
         m_dDecRateArcSecPerSec = 0.0;
     }
@@ -562,7 +631,7 @@ int RST::setTrackingRates(bool bSiderialTrackingOn, bool bIgnoreRates, double dR
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] default to sidereal" << std::endl;
         m_sLogFile.flush();
 #endif
-        nErr = sendCommand(":CT0#", sResp);
+        nErr = sendCommand(":CtR#", sResp);
         m_dRaRateArcSecPerSec = 0.0;
         m_dDecRateArcSecPerSec = 0.0;
     }
@@ -957,6 +1026,30 @@ int RST::isSlewToComplete(bool &bComplete)
     return nErr;
 }
 
+void RST::setParkPosition(int nParkPos)
+{
+    switch (nParkPos) {
+        case 1:
+            m_dParkAz = 270.00;
+            m_dPArkAlt = 0.00;
+            break;
+
+        case 2:
+            m_dParkAz = 180.00;
+            m_dPArkAlt = 0.00;
+            break;
+
+        case 3:
+            m_dParkAz = 90.00;
+            m_dPArkAlt = 0.00;
+            break;
+
+        default:
+            m_dParkAz = 270.00;
+            m_dPArkAlt = 0.00;
+            break;
+    }
+}
 
 int RST::gotoPark(double dAlt, double dAz)
 {
@@ -984,12 +1077,38 @@ int RST::gotoPark(double dAlt, double dAz)
 int RST::getAtPark(bool &bParked)
 {
     int nErr = PLUGIN_OK;
+    double dAlt, dAz;
+    bool bTrackingOn = true;
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Called." << std::endl;
     m_sLogFile.flush();
 #endif
+    bParked = false;
     isHomingDone(m_bIsHomed);
-    bParked = m_bIsHomed?false:true;
+    if(!m_bIsHomed)
+        bParked = true;
+    else {
+        getAltAndAz(dAlt, dAz);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark]  int(dAlt)       : " << int(dAlt) << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark]  int(m_dPArkAlt) : " << int(m_dPArkAlt) << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark]  int(dAz)        : " << int(dAz)<< std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark]  int(m_dParkAz)  : " << int(m_dParkAz) << std::endl;
+        m_sLogFile.flush();
+#endif
+        if(int(dAlt) == int(m_dPArkAlt) and int(dAz)== int(m_dParkAz)) {
+            isTrackingOn(bTrackingOn);
+            if(!bTrackingOn) {
+                m_bIsParked = true;
+                bParked = true;
+            }
+        }
+    }
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bParked   " << (bParked?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
 
     return nErr;
 }
@@ -1008,6 +1127,11 @@ int RST::unPark()
     nErr = homeMount();
     m_nNbHomingTries = 0;
     return nErr;
+}
+
+void RST::setMountIsParked(bool bIsParked)
+{
+    m_bIsParked = bIsParked;
 }
 
 int RST::isUnparkDone(bool &bComplete)
@@ -1069,13 +1193,12 @@ int RST::isUnparkDone(bool &bComplete)
     m_sLogFile.flush();
 #endif
 
+
     nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
     std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
-    nErr |= sendCommand(":CtR#", sResp); // set tracking to sidereal
-    std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
-    m_dRaRateArcSecPerSec = 0.0;
-    m_dDecRateArcSecPerSec = 0.0;
 
+    setTrackingRates(true, true, 0.0, 0.0);
+    m_bIsParked = false;
     return nErr;
 }
 
@@ -1156,7 +1279,7 @@ int RST::isHomingDone(bool &bIsHomed)
 }
 
 
-int RST::isTrackingOn(bool &bTrakOn)
+int RST::isTrackingOn(bool &bTrackOn)
 {
     int nErr = PLUGIN_OK;
     std::string sResp;
@@ -1165,11 +1288,11 @@ int RST::isTrackingOn(bool &bTrakOn)
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isTrackingOn] Called." << std::endl;
     m_sLogFile.flush();
 #endif
-    bTrakOn = false;
+    bTrackOn = false;
 
     nErr = sendCommand(":AT#", sResp, 2000);
     if(nErr) {
-        bTrakOn = true; // let's not break this because of an error, we're kind of ignoring the error here
+        bTrackOn = true; // let's not break this because of an error, we're kind of ignoring the error here
 #if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isTrackingOn] error " << nErr << ", response : " << sResp << std::endl;
         m_sLogFile.flush();
@@ -1178,11 +1301,16 @@ int RST::isTrackingOn(bool &bTrakOn)
     }
 
     if(sResp.size()==0) // there was a timeout probably
-        bTrakOn = true;
+        bTrackOn = true;
     else if(sResp.size() >= 3 && sResp.at(3) == '1')
-        bTrakOn = true;
+        bTrackOn = true;
     else if(sResp.size() >= 3 && sResp.at(3) == '0')
-        bTrakOn = false;
+        bTrackOn = false;
+
+#if defined PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isTrackingOn] bTrackOn : " << (bTrackOn?"Yes":"No")<< std::endl;
+    m_sLogFile.flush();
+#endif
 
     return nErr;
 }

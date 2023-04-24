@@ -40,6 +40,7 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 	}
 
     mRST.setSyncLocationDataConnect(m_bSyncOnConnect);
+    mRST.setParkPosition(m_nParkingPosition);
 }
 
 X2Mount::~X2Mount()
@@ -235,6 +236,7 @@ int X2Mount::execModalSettingsDialog(void)
         m_nParkingPosition = dx->currentIndex("comboBox") + 1;
         nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_SYNC_TIME, (m_bSyncOnConnect?1:0));
         nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_PARK_POS, m_nParkingPosition);
+        mRST.setParkPosition(m_nParkingPosition);
 	}
 	return nErr;
 }
@@ -621,6 +623,7 @@ int X2Mount::isCompletePark(bool& bComplete) const
     if(bComplete) {
         // stop tracking
         nErr = pMe->setTrackingRates( false, true, 0.0, 0.0);
+        pMe->mRST.setMountIsParked(true);
     }
 
     return nErr;
@@ -662,6 +665,7 @@ int X2Mount::isCompleteUnpark(bool& bComplete) const
     bComplete = false;
 
     nErr = pMe->mRST.isUnparkDone(bComplete);
+    pMe->mRST.setMountIsParked(false);
 
     if(bComplete) { // no longer parked.
         pMe->m_bParked = false;
