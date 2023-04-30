@@ -13,7 +13,12 @@ RST::RST()
     m_dDecRateArcSecPerSec = 0.0;
 
     m_dParkAz = 270.00;
-    m_dPArkAlt = 0.00;
+    m_dParkAlt = 0.00;
+
+    m_dAlt = 0.00;
+    m_dAz = 270.00;
+    m_dRa = 0;
+    m_dDec = 0;
 
     m_bSyncLocationDataConnect = false;
     m_bHomeOnUnpark = false;
@@ -21,7 +26,7 @@ RST::RST()
     m_bSyncDone = false;
     m_bIsHomed = false;
     m_bIsParked = true;
-
+    m_bUnparking = false;
     m_commandDelayTimer.Reset();
     
 #ifdef PLUGIN_DEBUG
@@ -123,11 +128,10 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     unsigned long  ulBytesWrite;
     std::vector<std::string> vFieldsData;
 
-    interCommandDelay();
     m_pSerx->purgeTxRx();
     sResp.clear();
 
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] sending '" << sCmd << "'" << std::endl;
     m_sLogFile.flush();
 #endif
@@ -144,13 +148,13 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
     while(true) {
         nErr = readResponse(sResp, nTimeout);
         if(nErr) {
-    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] ***** ERROR READING RESPONSE **** error = " << nErr << " , response : '" << sResp << "'" << std::endl;
             m_sLogFile.flush();
     #endif
             return nErr;
         }
-    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [sendCommand] response : '" << sResp << "'" <<  std::endl;
         m_sLogFile.flush();
     #endif
@@ -169,6 +173,8 @@ int RST::sendCommand(const std::string sCmd, std::string &sResp, int nTimeout)
                 }
             }
         }
+        if(sResp.find("CHO") != -1 )    // another async response on homing
+            continue;
         if(sResp.find("MM0") == -1 )
             break;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -258,17 +264,6 @@ int RST::readResponse(std::string &sResp, int nTimeout)
     return nErr;
 }
 
-
-void RST::interCommandDelay(float f_delay)
-{
-    while(m_commandDelayTimer.GetElapsedSeconds() < f_delay) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(int(INTER_COMMAND_DELAY_SECONDS*1000/2)));
-        std::this_thread::yield();
-        continue;
-    }
-    m_commandDelayTimer.Reset();
-}
-
 int RST::getFirmwareVersion(std::string &sFirmware)
 {
     int nErr = PLUGIN_OK;
@@ -279,6 +274,8 @@ int RST::getFirmwareVersion(std::string &sFirmware)
 #endif
 
     nErr = sendCommand(":AV#", sResp);
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
     sFirmware.assign(sResp);
     return nErr;
 }
@@ -297,49 +294,73 @@ int RST::getRaAndDec(double &dRa, double &dDec)
     // get RA
     nErr = sendCommand(":GR#", sResp);
     if(nErr) {
+        // retry
+        nErr = sendCommand(":GR#", sResp);
+        if(nErr) {
 #if defined PLUGIN_DEBUG
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GR# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
-        m_sLogFile.flush();
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GR# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+            m_sLogFile.flush();
 #endif
-        return nErr;
+            dRa = m_dRa;
+            dDec = m_dDec;
+            return PLUGIN_OK;
+        }
     }
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec]  sResp : " << sResp << std::endl;
     m_sLogFile.flush();
 #endif
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
 
     nErr = convertHHMMSStToRa(sResp.substr(3), dRa);
     if(nErr) {
 #if defined PLUGIN_DEBUG
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GD# convertHHMMSStToRa error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GR# convertHHMMSStToRa error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
         m_sLogFile.flush();
 #endif
-        return nErr;
+        dRa = m_dRa;
+        dDec = m_dDec;
+        return PLUGIN_OK;
     }
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec]  dRa : " << std::fixed << std::setprecision(12) << dRa << std::endl;
     m_sLogFile.flush();
 #endif
+    m_dRa = dRa;
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     // get DEC
     nErr = sendCommand(":GD#", sResp);
     if(nErr) {
+        // retry
+        nErr = sendCommand(":GD#", sResp);
+        if(nErr) {
 #if defined PLUGIN_DEBUG
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GD# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
-        m_sLogFile.flush();
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GD# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+            m_sLogFile.flush();
 #endif
-        return nErr;
+            dRa = m_dRa;
+            dDec = m_dDec;
+            return PLUGIN_OK;
+        }
     }
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
+
     nErr = convertDDMMSSToDecDeg(sResp.substr(3), dDec);
     if(nErr) {
 #if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] :GD# convertDDMMSSToDecDeg error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
         m_sLogFile.flush();
 #endif
-        return nErr;
+        dRa = m_dRa;
+        dDec = m_dDec;
+        return PLUGIN_OK;
     }
 
+    m_dDec = dDec;
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] dDec : " << std::fixed << std::setprecision(12) << dDec << std::endl;
     m_sLogFile.flush();
@@ -361,17 +382,25 @@ int RST::getAltAndAz(double &dAlt, double &dAz)
     // get Az
     nErr = sendCommand(":GZ#", sResp);
     if(nErr) {
+        // retry
+        nErr = sendCommand(":GZ#", sResp);
+        if(nErr) {
 #if defined PLUGIN_DEBUG
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GZ# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
-        m_sLogFile.flush();
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GZ# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+            m_sLogFile.flush();
 #endif
-        return nErr;
+            dAlt = m_dAlt;
+            dAz = m_dAz;
+            return PLUGIN_OK;
+        }
     }
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz]  sResp : " << sResp << std::endl;
     m_sLogFile.flush();
 #endif
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
 
     nErr = convertDDMMSSToDecDeg(sResp.substr(3), dAz);
     if(nErr) {
@@ -379,31 +408,48 @@ int RST::getAltAndAz(double &dAlt, double &dAz)
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GZ# convertDDMMSSToDecDeg error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
         m_sLogFile.flush();
 #endif
-        return nErr;
+        dAlt = m_dAlt;
+        dAz = m_dAz;
+        return PLUGIN_OK;
     }
+
+    m_dAz = dAz;
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz]  dAz : " << std::fixed << std::setprecision(12) << dAz << std::endl;
     m_sLogFile.flush();
 #endif
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+
     // get Alt
     nErr = sendCommand(":GA#", sResp);
     if(nErr) {
+        // retry
+        nErr = sendCommand(":GA#", sResp);
+        if(nErr) {
 #if defined PLUGIN_DEBUG
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GA# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
-        m_sLogFile.flush();
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GA# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+            m_sLogFile.flush();
 #endif
-        return nErr;
+            dAlt = m_dAlt;
+            dAz = m_dAz;
+            return PLUGIN_OK;
+        }
     }
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
     nErr = convertDDMMSSToDecDeg(sResp.substr(3), dAlt);
     if(nErr) {
 #if defined PLUGIN_DEBUG
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] :GA# convertDDMMSSToDecDeg error : " << nErr << " , sResp.substr(3) : " << sResp.substr(3) << std::endl;
         m_sLogFile.flush();
 #endif
-        return nErr;
+        dAlt = m_dAlt;
+        dAz = m_dAz;
+        return PLUGIN_OK;
     }
 
+    m_dAlt = dAlt;
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAltAndAz] dAlt : " << std::fixed << std::setprecision(12) << dAlt << std::endl;
     m_sLogFile.flush();
@@ -667,6 +713,9 @@ int RST::getTrackRates(bool &bSiderialTrackingOn, double &dRaRateArcSecPerSec, d
         return nErr;
     }
     // this is a switch case .. in case we want to add specific things for each in the future
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
+
     switch(sResp.at(3)) {
         case '0' :  // Sidereal
             dRaRateArcSecPerSec = 0.0;
@@ -929,6 +978,9 @@ int RST::getSpeed(const int nSpeedId, int &nSpeed)
 #endif
         return nErr;
     }
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
+
     parseFields(sResp, vFieldsData, '=');
     if(vFieldsData.size() >1) {
         try {
@@ -979,6 +1031,8 @@ int RST::getGuideSpeed(double &dSpeed)
 #endif
         return nErr;
     }
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
 
     parseFields(sResp, vFieldsData, '=');
     if(vFieldsData.size() >1) {
@@ -1021,34 +1075,47 @@ int RST::isSlewToComplete(bool &bComplete)
     m_sLogFile.flush();
 #endif
 
-    if(sResp.at(3)=='0')
+    if(sResp.size()>2 && sResp.at(3)=='0')
         bComplete = true;
     return nErr;
 }
 
 void RST::setParkPosition(int nParkPos)
 {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setParkPosition] Called." << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setParkPosition] nParkPos  = " << nParkPos << std::endl;
+    m_sLogFile.flush();
+#endif
+
     switch (nParkPos) {
         case 1:
             m_dParkAz = 270.00;
-            m_dPArkAlt = 0.00;
+            m_dParkAlt = 0.00;
             break;
 
         case 2:
             m_dParkAz = 180.00;
-            m_dPArkAlt = 0.00;
+            m_dParkAlt = 0.00;
             break;
 
         case 3:
             m_dParkAz = 90.00;
-            m_dPArkAlt = 0.00;
+            m_dParkAlt = 0.00;
             break;
 
         default:
             m_dParkAz = 270.00;
-            m_dPArkAlt = 0.00;
+            m_dParkAlt = 0.00;
             break;
     }
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setParkPosition] m_dParkAz  : " << m_dParkAz << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setParkPosition] m_dParkAlt : " << m_dParkAlt << std::endl;
+    m_sLogFile.flush();
+#endif
+
 }
 
 int RST::gotoPark(double dAlt, double dAz)
@@ -1079,6 +1146,11 @@ int RST::getAtPark(bool &bParked)
     int nErr = PLUGIN_OK;
     double dAlt, dAz;
     bool bTrackingOn = true;
+    bool bAltOk, bAzOk;
+    double dRaRateArcSecPerSec, dDecRateArcSecPerSec;
+    double highMark;
+    double lowMark;
+
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Called." << std::endl;
     m_sLogFile.flush();
@@ -1088,20 +1160,53 @@ int RST::getAtPark(bool &bParked)
     if(!m_bIsHomed)
         bParked = true;
     else {
+        getTrackRates(bTrackingOn, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
+        if(bTrackingOn) {
+            return nErr;
+        }
         getAltAndAz(dAlt, dAz);
+        isTrackingOn(bTrackingOn);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark]  int(dAlt)       : " << int(dAlt) << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark]  int(m_dPArkAlt) : " << int(m_dPArkAlt) << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark]  int(dAz)        : " << int(dAz)<< std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark]  int(m_dParkAz)  : " << int(m_dParkAz) << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bTrackingOn     : " << (bTrackingOn?"Yes":"No") << std::endl;
         m_sLogFile.flush();
 #endif
-        if(int(dAlt) == int(m_dPArkAlt) and int(dAz)== int(m_dParkAz)) {
-            isTrackingOn(bTrackingOn);
-            if(!bTrackingOn) {
-                m_bIsParked = true;
-                bParked = true;
-            }
+
+        if(bTrackingOn) {
+            return nErr;
+        }
+
+        highMark = ceil(dAlt);
+        lowMark = floor(dAlt);
+        bAltOk = false;
+        bAzOk = false;
+        if( lowMark <= m_dParkAlt && m_dParkAlt <= highMark )
+            bAltOk = true;
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt          : " << dAlt << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt highMark : " << highMark << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt lowMark  : " << lowMark << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] m_dParkAlt   : " << m_dParkAlt << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bAltOk       : " << (bAltOk?"Yes":"No") << std::endl;
+        m_sLogFile.flush();
+#endif
+
+        highMark = ceil(dAz);
+        lowMark = floor(dAz);
+        if( lowMark <= m_dParkAz && m_dParkAz <= highMark )
+            bAzOk = true;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az          : " << dAz << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az highMark : " << highMark << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az lowMark  : " << lowMark << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] m_dParkAz   : " << std::floor(m_dParkAz) << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bAzOk       : " << (bAltOk?"Yes":"No") << std::endl;
+        m_sLogFile.flush();
+#endif
+
+        if(bAltOk && bAzOk) { // At Alt and Az park position and not tracking.. parked
+            m_bIsParked = true;
+            bParked = true;
         }
     }
 
@@ -1116,7 +1221,6 @@ int RST::getAtPark(bool &bParked)
 int RST::unPark()
 {
     int nErr = PLUGIN_OK;
-    std::string sResp;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [unPark] Called." << std::endl;
@@ -1248,12 +1352,13 @@ int RST::isHomingDone(bool &bIsHomed)
             bIsHomed = true;
     }
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-       m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] bIsHomed : " << (bIsHomed?"Yes":"No") <<  std::endl;
-       m_sLogFile.flush();
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] bIsHomed : " << (bIsHomed?"Yes":"No") <<  std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isHomingDone] m_bUnparking : " << (m_bUnparking?"Yes":"No") <<  std::endl;
+    m_sLogFile.flush();
 #endif
 
     // check status in case we need to retry
-    if (bIsHomed) {
+    if (bIsHomed && m_bUnparking) {
         nErr = sendCommand(":GH#", sResp);
         if(nErr) {
 #if defined PLUGIN_DEBUG
@@ -1482,6 +1587,8 @@ int RST::getSiteTZ(std::string &sTimeZone)
 
     nErr = sendCommand(":GG#", sResp);
     if(!nErr) {
+        if(sResp.size() == 0)
+            return ERR_CMDFAILED;
         sTimeZone.assign(sResp.substr(3));
         if(sTimeZone.size() && sTimeZone.at(0) == '-') {
             sTimeZone[0] = '+';
@@ -1600,6 +1707,8 @@ int RST::getLocalTime(std::string &sTime)
     nErr = sendCommand(":GL#", sResp);
     if(nErr)
         return nErr;
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
     sTime.assign(sResp.substr(3));
     return nErr;
 }
@@ -1617,6 +1726,8 @@ int RST::getLocalDate(std::string &sDate)
     nErr = sendCommand(":GC#", sResp);
     if(nErr)
         return nErr;
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
     sDate.assign(sResp.substr(3));
     return nErr;
 }
@@ -1632,6 +1743,8 @@ int RST::getInputVoltage(double &dVolts)
     if(nErr)
         return nErr;
     try {
+        if(sResp.size() == 0)
+            return ERR_CMDFAILED;
         dVolts = std::stod(sResp.substr(3));
     }
     catch(const std::exception& e) {
@@ -1878,6 +1991,9 @@ int RST::getDecAxisAlignmentOffset(double &dOffset)
 #endif
 
     try {
+        if(sResp.size() == 0)
+            return ERR_CMDFAILED;
+
         dOffset = std::stod(sResp.substr(3));
     }
     catch(const std::exception& e) {
@@ -1926,6 +2042,8 @@ int RST::IsBeyondThePole(bool &bBeyondPole)
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole]  sResp : " << sResp << std::endl;
     m_sLogFile.flush();
 #endif
+    if(sResp.size() == 0)
+        return ERR_CMDFAILED;
 
     parseFields(sResp.substr(3), vFieldsData, '/');
     if(vFieldsData.size() >1) {
@@ -1965,7 +2083,9 @@ int RST::parseFields(const std::string sIn, std::vector<std::string> &svFields, 
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [parseFields] Called." << std::endl;
     m_sLogFile.flush();
 #endif
-
+    if(sIn.size() == 0)
+        return ERR_PARSE;
+    
     svFields.clear();
     // split the string into vector elements
     while(std::getline(ssTmp, sSegment, cSeparator))

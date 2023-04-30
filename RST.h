@@ -26,12 +26,12 @@
 
 #define PLUGIN_VERSION 1.8
 
-// #define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
+//#define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
 enum RSTErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_CMD_RESPONSE, COMMAND_FAILED, PLUGIN_ERROR, COMMAND_TIMEOUT};
 
 #define SERIAL_BUFFER_SIZE 256
-#define MAX_TIMEOUT 1000
+#define MAX_TIMEOUT 2000            // WiFi  on tht RST can take up to 1600 ms to respond !!!
 #define MAX_READ_WAIT_TIMEOUT 25
 #define ND_LOG_BUFFER_SIZE 256
 #define ERR_PARSE   1
@@ -115,6 +115,10 @@ private:
 
 	bool    m_bIsConnected;                               // Connected to the mount?
     std::string m_sFirmwareVersion;
+    double  m_dRa;
+    double  m_dDec;
+    double  m_dAlt;
+    double  m_dAz;
 
     bool    m_bSyncLocationDataConnect;
     bool    m_bHomeOnUnpark;
@@ -128,7 +132,7 @@ private:
     double m_dDecRateArcSecPerSec;
 
     double  m_dParkAz;
-    double  m_dPArkAlt;
+    double  m_dParkAlt;
 
     std::string     m_sTime;
     std::string     m_sDate;
@@ -169,8 +173,6 @@ private:
     int     getDecAxisAlignmentOffset(double &dOffset);
 
     int     parseFields(const std::string sIn, std::vector<std::string> &svFields, char cSeparator);
-
-    void    interCommandDelay(float f_delay = INTER_COMMAND_DELAY_SECONDS);
 
     std::vector<std::string>    m_svSlewRateNames = {"Guide", "Centering", "Find", "Max"};
 
