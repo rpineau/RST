@@ -27,6 +27,7 @@ RST::RST()
     m_bIsHomed = false;
     m_bIsParked = true;
     m_bUnparking = false;
+    m_bSlewing = false;
     m_commandDelayTimer.Reset();
     
 #ifdef PLUGIN_DEBUG
@@ -290,6 +291,11 @@ int RST::getRaAndDec(double &dRa, double &dDec)
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getRaAndDec] Called." << std::endl;
     m_sLogFile.flush();
 #endif
+    if(m_bUnparking) {
+        dRa = m_dRa;
+        dDec = m_dDec;
+        return nErr;
+    }
 
     // get RA
     nErr = sendCommand(":GR#", sResp);
@@ -797,6 +803,8 @@ int RST::startSlewTo(double dRa, double dDec)
 #endif
 
     }
+    m_bSlewing = true;
+
     return nErr;
 }
 
@@ -1060,6 +1068,10 @@ int RST::isSlewToComplete(bool &bComplete)
 #endif
 
     bComplete = false;
+    if(!m_bSlewing) {
+        bComplete = true;
+        return nErr;
+    }
 
     nErr = sendCommand(":CL#", sResp);
     if(nErr) {
@@ -1075,8 +1087,10 @@ int RST::isSlewToComplete(bool &bComplete)
     m_sLogFile.flush();
 #endif
 
-    if(sResp.size()>2 && sResp.at(3)=='0')
+    if(sResp.size()>2 && sResp.at(3)=='0') {
         bComplete = true;
+        m_bSlewing = false;
+    }
     return nErr;
 }
 
@@ -1147,67 +1161,64 @@ int RST::getAtPark(bool &bParked)
     double dAlt, dAz;
     bool bTrackingOn = true;
     bool bAltOk, bAzOk;
-    double dRaRateArcSecPerSec, dDecRateArcSecPerSec;
     double highMark;
     double lowMark;
+    bool bIsHomed;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Called." << std::endl;
     m_sLogFile.flush();
 #endif
     bParked = false;
-    isHomingDone(m_bIsHomed);
-    if(!m_bIsHomed)
+    isHomingDone(bIsHomed);
+    if(!bIsHomed) {
         bParked = true;
-    else {
-        getTrackRates(bTrackingOn, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
-        if(bTrackingOn) {
-            return nErr;
-        }
-        getAltAndAz(dAlt, dAz);
-        isTrackingOn(bTrackingOn);
+        return nErr;
+    }
+
+    isTrackingOn(bTrackingOn);
+    if(bTrackingOn) {
+        return nErr;
+    }
+
+    // if we're not tracking are we at the park position
+    getAltAndAz(dAlt, dAz);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bTrackingOn     : " << (bTrackingOn?"Yes":"No") << std::endl;
-        m_sLogFile.flush();
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bTrackingOn     : " << (bTrackingOn?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
 #endif
 
-        if(bTrackingOn) {
-            return nErr;
-        }
-
-        highMark = ceil(dAlt);
-        lowMark = floor(dAlt);
-        bAltOk = false;
-        bAzOk = false;
-        if( lowMark <= m_dParkAlt && m_dParkAlt <= highMark )
-            bAltOk = true;
+    highMark = ceil(dAlt);
+    lowMark = floor(dAlt);
+    bAltOk = false;
+    bAzOk = false;
+    if( lowMark <= m_dParkAlt && m_dParkAlt <= highMark )
+        bAltOk = true;
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt          : " << dAlt << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt highMark : " << highMark << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt lowMark  : " << lowMark << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] m_dParkAlt   : " << m_dParkAlt << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bAltOk       : " << (bAltOk?"Yes":"No") << std::endl;
-        m_sLogFile.flush();
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt          : " << dAlt << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt highMark : " << highMark << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Alt lowMark  : " << lowMark << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] m_dParkAlt   : " << m_dParkAlt << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bAltOk       : " << (bAltOk?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
 #endif
 
-        highMark = ceil(dAz);
-        lowMark = floor(dAz);
-        if( lowMark <= m_dParkAz && m_dParkAz <= highMark )
-            bAzOk = true;
+    highMark = ceil(dAz);
+    lowMark = floor(dAz);
+    if( lowMark <= m_dParkAz && m_dParkAz <= highMark )
+        bAzOk = true;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az          : " << dAz << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az highMark : " << highMark << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az lowMark  : " << lowMark << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] m_dParkAz   : " << std::floor(m_dParkAz) << std::endl;
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bAzOk       : " << (bAltOk?"Yes":"No") << std::endl;
-        m_sLogFile.flush();
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az          : " << dAz << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az highMark : " << highMark << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] Az lowMark  : " << lowMark << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] m_dParkAz   : " << std::floor(m_dParkAz) << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getAtPark] bAzOk       : " << (bAltOk?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
 #endif
 
-        if(bAltOk && bAzOk) { // At Alt and Az park position and not tracking.. parked
-            m_bIsParked = true;
-            bParked = true;
-        }
+    if(bAltOk && bAzOk) { // At Alt and Az park position and not tracking.. parked
+        bParked = true;
     }
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1221,6 +1232,7 @@ int RST::getAtPark(bool &bParked)
 int RST::unPark()
 {
     int nErr = PLUGIN_OK;
+    bool bIsHomed;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [unPark] Called." << std::endl;
@@ -1228,8 +1240,16 @@ int RST::unPark()
 #endif
     m_bUnparking = true;
 
-    nErr = homeMount();
-    m_nNbHomingTries = 0;
+    nErr = isHomingDone(bIsHomed);
+    if(nErr) {
+        m_bIsHomed = false;
+        return nErr;
+    }
+
+    if(!bIsHomed) {
+        nErr = homeMount();
+        m_nNbHomingTries = 0;
+    }
     return nErr;
 }
 
@@ -1357,7 +1377,7 @@ int RST::isHomingDone(bool &bIsHomed)
     m_sLogFile.flush();
 #endif
 
-    // check status in case we need to retry
+    // check status
     if (bIsHomed && m_bUnparking) {
         nErr = sendCommand(":GH#", sResp);
         if(nErr) {
@@ -1380,6 +1400,7 @@ int RST::isHomingDone(bool &bIsHomed)
             bIsHomed = false;
         }
     }
+
     return nErr;
 }
 
