@@ -65,6 +65,7 @@ RST::~RST(void)
 int RST::Connect(char *pszPort)
 {
     std::string sResp;
+    int nErr = PLUGIN_OK;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Connect Called." << std::endl;
@@ -85,15 +86,32 @@ int RST::Connect(char *pszPort)
     // sendCommand(":AU#", sResp, 0);
     // std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
     // request protocol Rainbow
-    sendCommand(":AR#", sResp, 0);
+    nErr = sendCommand(":AR#", sResp, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] :AR# error " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+        m_bIsConnected = false;
+        return nErr;
+    }
 
     if(m_bSyncLocationDataConnect) {
-        setSiteData(m_pTsx->longitude(),
+        nErr = setSiteData(m_pTsx->longitude(),
                     m_pTsx->latitude(),
                     m_pTsx->timeZone());
     }
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] error " << nErr << ", response = " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+        m_bIsConnected = false;
+        return nErr;
+    }
     m_bSyncDone = false;
+
     return SB_OK;
 }
 
@@ -105,6 +123,7 @@ int RST::Disconnect(void)
     m_sLogFile.flush();
 #endif
 	if (m_bIsConnected) {
+        setTrackingRates( false, true, 0.0, 0.0); // stop tracking on disconnect
         if(m_pSerx){
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Disconnect] closing serial port." << std::endl;
@@ -1232,6 +1251,7 @@ int RST::getAtPark(bool &bParked)
 int RST::unPark()
 {
     int nErr = PLUGIN_OK;
+    std::string sResp;
     bool bIsHomed;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -1239,6 +1259,9 @@ int RST::unPark()
     m_sLogFile.flush();
 #endif
     m_bUnparking = true;
+
+    nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
+    std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
 
     nErr = isHomingDone(bIsHomed);
     if(nErr) {
@@ -1264,6 +1287,7 @@ int RST::isUnparkDone(bool &bComplete)
     bool bAtPArk;
     // double dRa, dDec;
     std::string sResp;
+    bool bTrackingOn = false;
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] Called." << std::endl;
@@ -1317,11 +1341,25 @@ int RST::isUnparkDone(bool &bComplete)
     m_sLogFile.flush();
 #endif
 
-
     nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
     std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
 
+    isTrackingOn(bTrackingOn);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bTrackingOn   " << (bTrackingOn?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
+
+
     setTrackingRates(true, true, 0.0, 0.0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
+
+    isTrackingOn(bTrackingOn);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bTrackingOn   " << (bTrackingOn?"Yes":"No") << std::endl;
+    m_sLogFile.flush();
+#endif
+
     m_bIsParked = false;
     return nErr;
 }
@@ -1523,6 +1561,13 @@ int RST::setSiteLongitude(const std::string sLongitude)
     nErr = sendCommand(ssTmp.str(), sResp, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
 
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteLongitude] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+
     return nErr;
 }
 
@@ -1541,6 +1586,13 @@ int RST::setSiteLatitude(const std::string sLatitude)
     nErr = sendCommand(ssTmp.str(), sResp, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
 
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteLatitude] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+
     return nErr;
 }
 
@@ -1558,6 +1610,14 @@ int RST::setSiteTimezone(const std::string sTimezone)
     ssTmp << ":SG" << sTimezone << "#";
     nErr = sendCommand(ssTmp.str(), sResp, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteTimezone] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+
     return nErr;
 }
 
@@ -1575,6 +1635,14 @@ int RST::getSiteLongitude(std::string &sLongitude)
     if(!nErr) {
         sLongitude.assign(sResp.substr(3));
     }
+
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getSiteLongitude] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+
     return nErr;
 }
 
@@ -1591,6 +1659,13 @@ int RST::getSiteLatitude(std::string &sLatitude)
     nErr = sendCommand(":Gt#", sResp);
     if(!nErr) {
         sLatitude.assign(sResp.substr(3));
+    }
+
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getSiteLatitude] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
     }
 
     return nErr;
@@ -1617,6 +1692,13 @@ int RST::getSiteTZ(std::string &sTimeZone)
         else {
             sTimeZone[0] = '-';
         }
+    }
+
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getSiteTZ] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
     }
 
     return nErr;
@@ -1689,6 +1771,14 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
 
     nErr |= syncTime();
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] error " << nErr  << std::endl;
+        m_sLogFile.flush();
+#endif
+    }
+
     return nErr;
 }
 
@@ -1726,11 +1816,17 @@ int RST::getLocalTime(std::string &sTime)
 #endif
 
     nErr = sendCommand(":GL#", sResp);
-    if(nErr)
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getLocalTime] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
         return nErr;
+    }
     if(sResp.size() == 0)
         return ERR_CMDFAILED;
     sTime.assign(sResp.substr(3));
+
     return nErr;
 }
 
@@ -1745,8 +1841,13 @@ int RST::getLocalDate(std::string &sDate)
 #endif
 
     nErr = sendCommand(":GC#", sResp);
-    if(nErr)
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getLocalDate] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
         return nErr;
+    }
     if(sResp.size() == 0)
         return ERR_CMDFAILED;
     sDate.assign(sResp.substr(3));
@@ -1761,8 +1862,14 @@ int RST::getInputVoltage(double &dVolts)
     dVolts = 0.0;
 
     nErr = sendCommand(":Cv#", sResp);
-    if(nErr)
+    if(nErr) {
+#if defined PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getInputVoltage] error " << nErr << ", response : " << sResp << std::endl;
+        m_sLogFile.flush();
+#endif
         return nErr;
+    }
+
     try {
         if(sResp.size() == 0)
             return ERR_CMDFAILED;
@@ -1999,11 +2106,17 @@ int RST::getDecAxisAlignmentOffset(double &dOffset)
     // get Dec Axis Alignment Offset
     nErr = sendCommand(":CG3#", sResp);
     if(nErr) {
+        if(nErr == COMMAND_TIMEOUT) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+            nErr = sendCommand(":CG3#", sResp);
+        }
+        if(nErr) {
 #if defined PLUGIN_DEBUG
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDecAxisAlignmentOffset] :CG3# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
-        m_sLogFile.flush();
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [getDecAxisAlignmentOffset] :CG3# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+            m_sLogFile.flush();
 #endif
-        return nErr;
+            return nErr;
+        }
     }
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -2043,20 +2156,29 @@ int RST::IsBeyondThePole(bool &bBeyondPole)
 
     bBeyondPole = false;
 
+    if(m_bUnparking) {
+        return nErr;
+    }
+
     nErr = getDecAxisAlignmentOffset(dOffset);
     if(nErr) {
-        return nErr;
-
+        return PLUGIN_OK; // might not be supported by this firmware.
     }
 
     // get Side of pier
     nErr = sendCommand(":CY#", sResp);
     if(nErr) {
+        if(nErr == COMMAND_TIMEOUT) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // need to give time to the mount to process the command
+            nErr = sendCommand(":CY#", sResp);
+        }
+        if(nErr) {
 #if defined PLUGIN_DEBUG
-        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole] :CY# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
-        m_sLogFile.flush();
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole] :CY# ERROR : " << nErr << " , sResp : " << sResp << std::endl;
+            m_sLogFile.flush();
 #endif
-        return nErr;
+            return PLUGIN_OK; // might not be supported by this firmware.
+        }
     }
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -2077,7 +2199,7 @@ int RST::IsBeyondThePole(bool &bBeyondPole)
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [IsBeyondThePole] conversion exception : " << e.what() << std::endl;
             m_sLogFile.flush();
 #endif
-            return ERR_CMDFAILED;
+            return PLUGIN_OK; // might not be supported by this firmware.
         }
     }
 
