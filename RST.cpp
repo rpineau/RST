@@ -1341,18 +1341,14 @@ int RST::isUnparkDone(bool &bComplete)
     m_sLogFile.flush();
 #endif
 
+    // enabling tracking twice to bypass tracking prevention if Alt is at 0 or bellow. If parked at patk1 this is needed or tracking doesn't start
+
     nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
-    std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
-
-    isTrackingOn(bTrackingOn);
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [isUnparkDone] bTrackingOn   " << (bTrackingOn?"Yes":"No") << std::endl;
-    m_sLogFile.flush();
-#endif
-
-
+    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // need to give time to the mount to process the command
+    nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
+    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // need to give time to the mount to process the command
     setTrackingRates(true, true, 0.0, 0.0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
+    std::this_thread::sleep_for(std::chrono::milliseconds(50)); // need to give time to the mount to process the command
 
     isTrackingOn(bTrackingOn);
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
