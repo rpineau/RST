@@ -40,6 +40,7 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 	}
 
     mRST.setSyncLocationDataConnect(m_bSyncOnConnect);
+    mRST.setParkPosition(m_nParkingPosition);
 }
 
 X2Mount::~X2Mount()
@@ -235,6 +236,7 @@ int X2Mount::execModalSettingsDialog(void)
         m_nParkingPosition = dx->currentIndex("comboBox") + 1;
         nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_SYNC_TIME, (m_bSyncOnConnect?1:0));
         nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_PARK_POS, m_nParkingPosition);
+        mRST.setParkPosition(m_nParkingPosition);
 	}
 	return nErr;
 }
@@ -338,7 +340,11 @@ bool X2Mount::isEstablishLinkAbortable(void) const
 
 void	X2Mount::driverInfoDetailedInfo(BasicStringInterface& str) const
 {
+#ifdef PLUGIN_DEBUG
+    str = "RST X2 plugin by Rodolphe Pineau [DEBUG]";
+#else
 	str = "RST X2 plugin by Rodolphe Pineau";
+#endif
 }
 
 double	X2Mount::driverInfoVersion(void) const
@@ -361,7 +367,7 @@ void X2Mount::deviceInfoNameLong(BasicStringInterface& str) const
 }
 void X2Mount::deviceInfoDetailedDescription(BasicStringInterface& str) const
 {
-	str = "Astrometric Instruments Telescope Control System";
+	str = "Rainbow Astro RST mount";
 	
 }
 void X2Mount::deviceInfoFirmwareVersion(BasicStringInterface& str)
@@ -547,17 +553,15 @@ bool X2Mount::needsRefactionAdjustments(void)
 bool X2Mount::isParked(void)
 {
     int nErr;
-    bool bIsPArked;
 
     if(!m_bLinked)
         return false;
 
     X2MutexLocker ml(GetMutex());
-    nErr = mRST.getAtPark(bIsPArked);
+    nErr = mRST.getAtPark(m_bParked);
     if(nErr) {
         return false;
     }
-    m_bParked = bIsPArked;
     return m_bParked;
 }
 
@@ -617,11 +621,12 @@ int X2Mount::isCompletePark(bool& bComplete) const
         return nErr;
 
     if(bComplete) {
-        nErr = pMe->mRST.getAtPark(bComplete);
-        if(nErr)
-            return nErr;
+        // stop tracking
+        nErr = pMe->setTrackingRates( false, true, 0.0, 0.0);
+        pMe->mRST.setMountIsParked(true);
     }
-	return nErr;
+
+    return nErr;
 }
 
 int X2Mount::endPark(void)
@@ -660,6 +665,7 @@ int X2Mount::isCompleteUnpark(bool& bComplete) const
     bComplete = false;
 
     nErr = pMe->mRST.isUnparkDone(bComplete);
+    pMe->mRST.setMountIsParked(false);
 
     if(bComplete) { // no longer parked.
         pMe->m_bParked = false;

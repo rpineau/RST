@@ -24,20 +24,20 @@
 
 #include "StopWatch.h"
 
-#define PLUGIN_VERSION 1.5
+#define PLUGIN_VERSION 1.91
 
 // #define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
 enum RSTErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_CMD_RESPONSE, COMMAND_FAILED, PLUGIN_ERROR, COMMAND_TIMEOUT};
 
 #define SERIAL_BUFFER_SIZE 256
-#define MAX_TIMEOUT 1000
+#define MAX_TIMEOUT 2000            // WiFi  on tht RST can take up to 1600 ms to respond !!!
 #define MAX_READ_WAIT_TIMEOUT 25
 #define ND_LOG_BUFFER_SIZE 256
 #define ERR_PARSE   1
 
 #define PLUGIN_NB_SLEW_SPEEDS 4
-
+#define INTER_COMMAND_DELAY_SECONDS     0.150
 
 // Define Class for Astrometric Instruments RST controller.
 class RST
@@ -56,6 +56,7 @@ public:
     int getFirmwareVersion(std::string &sFirmware);
 
     int getRaAndDec(double &dRa, double &dDec);
+    int getAltAndAz(double &dAlt, double &dAz);
     int syncTo(double dRa, double dDec);
     int isAligned(bool &bAligned);
     
@@ -76,9 +77,11 @@ public:
     int setGuideSpeed(const double dSpeed);
     int getGuideSpeed(double &dSpeed);
 
+    void setParkPosition(int nParkPos);
     int gotoPark(double dAlt, double dAz);
     int getAtPark(bool &bParked);
     int unPark();
+    void setMountIsParked(bool bIsParked);
     int isUnparkDone(bool &bcomplete);
     int isTrackingOn(bool &bTrakOn);
 
@@ -112,15 +115,25 @@ private:
 
 	bool    m_bIsConnected;                               // Connected to the mount?
     std::string m_sFirmwareVersion;
+    double  m_dRa;
+    double  m_dDec;
+    double  m_dAlt;
+    double  m_dAz;
 
     bool    m_bSyncLocationDataConnect;
     bool    m_bHomeOnUnpark;
     bool    m_bUnparking;
     int     m_nNbHomingTries;
     bool    m_bSyncDone;
+    bool    m_bIsHomed;
+    bool    m_bIsParked;
+    bool    m_bSlewing;
 
     double m_dRaRateArcSecPerSec;
     double m_dDecRateArcSecPerSec;
+
+    double  m_dParkAz;
+    double  m_dParkAlt;
 
     std::string     m_sTime;
     std::string     m_sDate;
@@ -164,7 +177,8 @@ private:
 
     std::vector<std::string>    m_svSlewRateNames = {"Guide", "Centering", "Find", "Max"};
 
-    
+    CStopWatch  m_commandDelayTimer;
+
 #ifdef PLUGIN_DEBUG
     // timestamp for logs
     const std::string getTimeStamp();
