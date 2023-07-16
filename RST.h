@@ -24,7 +24,7 @@
 
 #include "StopWatch.h"
 
-#define PLUGIN_VERSION 1.92
+#define PLUGIN_VERSION 1.93
 
 // #define PLUGIN_DEBUG 2   // define this to have log files, 1 = bad stuff only, 2 and up.. full debug
 
@@ -105,6 +105,8 @@ public:
 
     int     IsBeyondThePole(bool &bBeyondPole);
 
+    void    setStopTrackingOnDisconnect(bool bLeaveOn);
+    
 #ifdef PLUGIN_DEBUG
     void log(std::string sLogEntry);
 #endif
@@ -128,7 +130,8 @@ private:
     bool    m_bIsHomed;
     bool    m_bIsParked;
     bool    m_bSlewing;
-
+    bool    m_bStopTrackingOnDisconnect;
+    
     double m_dRaRateArcSecPerSec;
     double m_dDecRateArcSecPerSec;
 

@@ -24,6 +24,8 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 	m_bParked = false;
     m_bLinked = false;
     m_bSyncOnConnect = false;
+    m_bStopTrackingOnDisconnect = false;
+    
     m_nParkingPosition = 1;
 
     mRST.setSerxPointer(m_pSerX);
@@ -36,11 +38,12 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 	{
         m_bSyncOnConnect = (m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_SYNC_TIME, 0) == 0 ? false : true);
         m_nParkingPosition = m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_PARK_POS, 1);
-        
+        m_bStopTrackingOnDisconnect = (m_pIniUtil->readInt(PARENT_KEY, CHILD_KEY_STOP_TRK, 1) == 0 ? false : true);
 	}
 
     mRST.setSyncLocationDataConnect(m_bSyncOnConnect);
     mRST.setParkPosition(m_nParkingPosition);
+    mRST.setStopTrackingOnDisconnect(m_bStopTrackingOnDisconnect);
 }
 
 X2Mount::~X2Mount()
@@ -225,6 +228,7 @@ int X2Mount::execModalSettingsDialog(void)
     }
 
     dx->setChecked("checkBox", (m_bSyncOnConnect?1:0));
+    dx->setChecked("checkBox_2", (m_bStopTrackingOnDisconnect?1:0));
 
     //Display the user interface
 	if ((nErr = ui->exec(bPressedOK)))
@@ -233,10 +237,13 @@ int X2Mount::execModalSettingsDialog(void)
 	//Retreive values from the user interface
 	if (bPressedOK) {
         m_bSyncOnConnect = (dx->isChecked("checkBox")==1?true:false);
+        m_bStopTrackingOnDisconnect = (dx->isChecked("checkBox_2")==1?true:false);
         m_nParkingPosition = dx->currentIndex("comboBox") + 1;
         nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_SYNC_TIME, (m_bSyncOnConnect?1:0));
         nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_PARK_POS, m_nParkingPosition);
+        nErr |= m_pIniUtil->writeInt(PARENT_KEY, CHILD_KEY_STOP_TRK, (m_bStopTrackingOnDisconnect?1:0));
         mRST.setParkPosition(m_nParkingPosition);
+        mRST.setStopTrackingOnDisconnect(m_bStopTrackingOnDisconnect);
 	}
 	return nErr;
 }
