@@ -35,6 +35,7 @@
 #define CHILD_KEY_PORT_NAME "PortName"
 #define CHILD_KEY_SYNC_TIME "SyncTime"
 #define CHILD_KEY_PARK_POS  "ParkPos"
+#define CHILD_KEY_STOP_TRK  "StopTrackingOnDisconnect"
 
 #define MAX_PORT_NAME_SIZE 120
 
@@ -219,6 +220,8 @@ private:
     int m_nParkingPosition;
     bool m_bSyncOnConnect;
 
+    bool m_bStopTrackingOnDisconnect;
+    
     char m_PortName[MAX_PORT_NAME_SIZE];
 	
 	int m_CurrentRateIndex;

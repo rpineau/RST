@@ -28,6 +28,8 @@ RST::RST()
     m_bIsParked = true;
     m_bUnparking = false;
     m_bSlewing = false;
+    m_bStopTrackingOnDisconnect = true;
+    
     m_commandDelayTimer.Reset();
     
 #ifdef PLUGIN_DEBUG
@@ -123,7 +125,8 @@ int RST::Disconnect(void)
     m_sLogFile.flush();
 #endif
 	if (m_bIsConnected) {
-        setTrackingRates( false, true, 0.0, 0.0); // stop tracking on disconnect
+        if(m_bStopTrackingOnDisconnect)
+            setTrackingRates( false, true, 0.0, 0.0); // stop tracking on disconnect.
         if(m_pSerx){
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
             m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Disconnect] closing serial port." << std::endl;
@@ -672,6 +675,8 @@ int RST::setTrackingRates(bool bSiderialTrackingOn, bool bIgnoreRates, double dR
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Sidereal" << std::endl;
         m_sLogFile.flush();
 #endif
+        nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
+        std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
         nErr = sendCommand(":CtR#", sResp);
         m_dRaRateArcSecPerSec = 0.0;
         m_dDecRateArcSecPerSec = 0.0;
@@ -682,6 +687,8 @@ int RST::setTrackingRates(bool bSiderialTrackingOn, bool bIgnoreRates, double dR
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Lunar" << std::endl;
         m_sLogFile.flush();
 #endif
+        nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
+        std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
         nErr = sendCommand(":CtM#", sResp);
         m_dRaRateArcSecPerSec = dRaRateArcSecPerSec;
         m_dDecRateArcSecPerSec = dDecRateArcSecPerSec;
@@ -692,6 +699,8 @@ int RST::setTrackingRates(bool bSiderialTrackingOn, bool bIgnoreRates, double dR
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] setting to Solar" << std::endl;
         m_sLogFile.flush();
 #endif
+        nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
+        std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
         nErr = sendCommand(":CtS#", sResp);
         m_dRaRateArcSecPerSec = dRaRateArcSecPerSec;
         m_dDecRateArcSecPerSec = dDecRateArcSecPerSec;
@@ -702,6 +711,8 @@ int RST::setTrackingRates(bool bSiderialTrackingOn, bool bIgnoreRates, double dR
         m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setTrackingRates] default to sidereal" << std::endl;
         m_sLogFile.flush();
 #endif
+        nErr = sendCommand(":CtA#", sResp); // unpark, tracking on
+        std::this_thread::sleep_for(std::chrono::milliseconds(250)); // need to give time to the mount to process the command
         nErr = sendCommand(":CtR#", sResp);
         m_dRaRateArcSecPerSec = 0.0;
         m_dDecRateArcSecPerSec = 0.0;
@@ -1800,7 +1811,6 @@ void RST::setSyncLocationDataConnect(bool bSync)
 
 #pragma mark  - Time and Date
 
-#pragma mark - Parse result
 int RST::getLocalTime(std::string &sTime)
 {
     int nErr = PLUGIN_OK;
@@ -2211,7 +2221,13 @@ int RST::IsBeyondThePole(bool &bBeyondPole)
     return nErr;
 }
 
+void RST::setStopTrackingOnDisconnect(bool bStop)
+{
+    m_bStopTrackingOnDisconnect = bStop;
+}
 
+
+#pragma mark - Parse result
 int RST::parseFields(const std::string sIn, std::vector<std::string> &svFields, char cSeparator)
 {
     int nErr = PLUGIN_OK;
