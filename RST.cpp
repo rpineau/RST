@@ -1731,8 +1731,8 @@ int RST::setSiteData(double dLongitude, double dLatitute, double dTimeZone)
 
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dLongitude : " << std::fixed << std::setprecision(5) << dLongitude << std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dLatitute : " << std::fixed << std::setprecision(5) << dLatitute << std::endl;
-    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dTimeZone : " << std::fixed << std::setprecision(2) << dTimeZone << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dLatitute  : " << std::fixed << std::setprecision(5) << dLatitute << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setSiteData] dTimeZone  : " << std::fixed << std::setprecision(2) << dTimeZone << std::endl;
     m_sLogFile.flush();
 #endif
 
